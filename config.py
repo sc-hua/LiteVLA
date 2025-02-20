@@ -84,6 +84,7 @@ _C.MODEL.LITEVLA.DISTILLATION = False
 _C.MODEL.LITEVLA.BACKBONE = False
 _C.MODEL.LITEVLA.OUT_INDICES = None
 _C.MODEL.LITEVLA.PRETRAINED = None
+_C.MODEL.LITEVLA.ABLATION = ""
 
 # -----------------------------------------------------------------------------
 # Training settings

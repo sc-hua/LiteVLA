@@ -1,9 +1,14 @@
 from .litevla import LiteVLA, create_litevla
+from .litevla_ablation import LiteVLA_AB
     
 def build_litevla_model(config, **kwargs):
     model = None
     if 'litevla' in config.MODEL.TYPE:
-        model = LiteVLA(
+        MODEL = LiteVLA
+        ablation = config.MODEL.LITEVLA.ABLATION
+        if ablation != '' and len(ablation) > 0:
+            MODEL = LiteVLA_AB
+        model = MODEL(
             dims=config.MODEL.LITEVLA.DIMS,
             depths=config.MODEL.LITEVLA.DEPTHS,
             block_types=config.MODEL.LITEVLA.BLOCK_TYPES,
@@ -24,6 +29,7 @@ def build_litevla_model(config, **kwargs):
             backbone=config.MODEL.LITEVLA.BACKBONE or kwargs.pop('backbone', False),
             out_indices=config.MODEL.LITEVLA.OUT_INDICES,
             pretrained=config.MODEL.LITEVLA.PRETRAINED or kwargs.pop('pretrained', None),
+            ablation=config.MODEL.LITEVLA.ABLATION,
             **kwargs)
     return model
 
