@@ -182,6 +182,9 @@ class LiteVLA(nn.Module):
                  backbone=False, out_indices=None, pretrained=None,  # for backbone
                  **kwargs):
         super().__init__()
+        ablation = kwargs.pop('ablation', '')
+        if ablation != '' and len(ablation) > 0:
+            raise ValueError(f"ablation: {kwargs['ablation']}, please refer to the ablation version of LiteVLA")
         if isinstance(dims, int):
             dims = [dims * 2 ** i for i in range(len(depths))]
         ds_fuse = [f == 'f' for f in ds_fuse]

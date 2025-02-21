@@ -16,39 +16,6 @@ class Scale(nn.Module):
         return x * self.alpha.view(*self.shape)
 
 
-def Conv(inp, oup, k=1, s=1, p=0, d=1, g=1, res=False, bn_w_init=1., use_rep=True):
-    if use_rep:
-        return RepConv(inp=inp, oup=oup, k=k, s=s, g=g, res=res, bn_w_init=bn_w_init)
-    else:
-        c = ConvNorm(inp=inp, oup=oup, k=k, s=s, p=p, d=d, g=g, bn_w_init=bn_w_init)
-        if res and (inp == oup) and (s == 1):
-            return Residual(c, dim=oup, learn_vector=True)
-        else:
-            return c
-
-
-class Residual(nn.Module):
-    def __init__(self, fn, dim, learn_vector=False):
-        super().__init__()
-        self.fn = fn
-        self.scale = Scale(dim) if learn_vector else nn.Identity()
-
-    def forward(self, x, *args, **kwargs):
-        return self.fn(x, *args, **kwargs) + self.scale(x)
-
-    @torch.no_grad()
-    def fuse(self):
-        c = self.fn
-        if isinstance(self.fn, ConvNorm):
-            c = c.fuse()
-        if isinstance(c, nn.Conv2d):
-            id_weight = get_id_tensor(c) * self.scale_res.alpha.view(-1, 1, 1, 1)
-            weight = c.weight + id_weight
-            c.weight.data.copy_(weight)
-            return c
-        return self
-
-
 class ConvNorm(nn.Sequential):
     def __init__(self, inp, oup, k=1, s=1, p=0, d=1, g=1, bn_w_init=1.):
         super().__init__()
@@ -173,6 +140,7 @@ def ConvGate(inp, oup, act, conv1d=False):
     Conv = nn.Conv1d if conv1d else nn.Conv2d
     c = Conv(inp, oup, kernel_size=1, bias=True)
     # override init of c, set weight near zero, bias=1
+    # (1.make this `gate branch` more stable; 2.reduces the impact to another branch) for early epochs
     trunc_normal_(c.weight, std=GLOBAL_EPS)
     nn.init.ones_(c.bias)
     if act is None:

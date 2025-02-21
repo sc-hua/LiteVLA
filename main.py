@@ -40,17 +40,6 @@ if torch.multiprocessing.get_start_method() != "spawn":
     torch.multiprocessing.set_start_method("spawn", force=True)
 
 
-def import_abspy(name="models", path="classification/"):
-    import sys
-    import importlib
-    path = os.path.abspath(path)
-    assert os.path.isdir(path)
-    sys.path.insert(0, path)
-    module = importlib.import_module(name)
-    sys.path.pop(0)
-    return module
-
-
 def str2bool(v):
     """
     Converts string to bool type; enables command line 
@@ -67,7 +56,7 @@ def str2bool(v):
 
 
 def parse_option():
-    parser = argparse.ArgumentParser('Swin Transformer training and evaluation script', add_help=False)
+    parser = argparse.ArgumentParser('LiteVLA training and evaluation script', add_help=False)
     parser.add_argument('--cfg', type=str, required=True, metavar="FILE", help='path to config file', )
     parser.add_argument(
         "--opts",
@@ -78,8 +67,7 @@ def parse_option():
 
     # easy config modification
     parser.add_argument('-b','--batch-size', type=int, help="batch size for single GPU")
-    # parser.add_argument('--data-path', type=str, default="/dataset/ImageNet_ILSVRC2012", help='path to dataset')
-    parser.add_argument('--data-path', type=str, default="/home/xjx/dataset/imagenet", help='path to dataset')
+    parser.add_argument('--data-path', type=str, default="/dataset/ImageNet_ILSVRC2012", help='path to dataset')
     parser.add_argument('--zip', action='store_true', help='use zipped dataset instead of folder dataset')
     parser.add_argument('--cache-mode', type=str, default='part', choices=['no', 'full', 'part'],
                         help='no: no cache, '

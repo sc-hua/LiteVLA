@@ -9,7 +9,7 @@ MODEL:
     DS_EXP: 4
     DS_KERNEL: 3
     DS_FUSE: 'fff-'
-    ACT_LAYER: 'silu'
+    ACT: 'silu'
     DWC_KERNEL: 5
     ATTN_RATIO: 0.125
     ATTN_KERNEL: 'elu1'

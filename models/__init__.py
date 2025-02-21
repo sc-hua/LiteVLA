@@ -1,5 +1,5 @@
 from .litevla import LiteVLA, create_litevla
-from .litevla_ablation import LiteVLA_AB
+from .litevla_for_ab import LiteVLA as LiteVLA_AB
     
 def build_litevla_model(config, **kwargs):
     model = None

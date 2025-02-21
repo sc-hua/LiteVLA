@@ -1,14 +1,14 @@
 MODEL:
-  TYPE: litevla
-  NAME: litevla_t
+  TYPE: litevla_for_ab
+  NAME: litevla_n_use_sa
   LITEVLA:
-    DIMS: [32, 64, 128, 256]
+    DIMS: [48, 96, 192, 384]
     DEPTHS: [2, 2, 11, 3]
     BLOCK_TYPES: ['GAB', 'GAB', 'VLA', 'VLA']
     STEM_KERNEL: 5
     DS_EXP: 4
     DS_KERNEL: 3
-    DS_FUSE: 'ffff'
+    DS_FUSE: 'ff--'
     ACT: 'silu'
     DWC_KERNEL: 5
     ATTN_RATIO: 0.125
@@ -17,7 +17,8 @@ MODEL:
     MLP_RATIO: 3
     HEAD_NORM: 'mrms'
 
+    ##################
+    ABLATION: "use_sa"
+
 TRAIN:
   WARMUP_EPOCHS: 10
-
-# tiny

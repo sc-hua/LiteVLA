@@ -11,15 +11,21 @@ from models.ops.act import get_act
 
 
 class GatedAggBlock(nn.Module):
-    def __init__(self, dim, k, act, n=2, e=0.5):
+    def __init__(self, dim, k, act, n=2, e=0.5, **kwargs):
         super().__init__()
         d = int(dim * e)
         d_out = (n + 1) * d
         
         self.x = ConvNorm(dim, d)
         self.act = get_act(act)
-        self.agg = nn.ModuleList(RepConv(d, d, k=k, g=d) for _ in range(n))
-        self.g = ConvGate(dim, d_out, act=nn.Sigmoid)
+        no_rep = kwargs.get('no_rep', False)
+        self.agg = nn.ModuleList(RepConv(d, d, k=k, g=d, use_sk=not no_rep) for _ in range(n))
+        
+        self.no_gate = kwargs.get('no_gate', False)
+        if not self.no_gate:
+            gate_act = kwargs.get('gate_act', 'sigmoid')
+            gate_act = get_act(gate_act)
+            self.g = ConvGate(dim, d_out, act=gate_act)
         self.out = ConvNorm(d_out, dim, bn_w_init=0.)
         self.rs = Scale(dim)
 
@@ -28,12 +34,14 @@ class GatedAggBlock(nn.Module):
         for agg in self.agg:
             z = y[-1]
             y.append(z + self.act(agg(z)))
-        y = torch.cat(y, 1) * self.g(x)
+        y = torch.cat(y, 1)
+        if not self.no_gate:
+            y = y * self.g(x)
         return self.out(y) + self.rs(x)
     
 
 class ELA(nn.Module):
-    def __init__(self, dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel):
+    def __init__(self, dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel, **kwargs):
         super().__init__()        
         d = make_divisible(int(dim * attn_ratio), 8)
         d_qk, d_v = d, 2 * d
@@ -41,16 +49,54 @@ class ELA(nn.Module):
         attn_dim = sum(slices)
         self.slices = slices
         
-        self.eps = GLOBAL_EPS
-        self.kernel = get_act(attn_kernel)
         self.proj = ConvNorm(dim, attn_dim)
-        self.dwc = RepConv(attn_dim, attn_dim, k=dwc_kernel, g=attn_dim, res=True)
-        self.g = ConvGate(attn_dim, d_v, act=nn.Sigmoid, conv1d=True)
-        self.attn_norm = get_norm(attn_norm, d_v, w_init=0.)
-        self.scale_v = Scale(d_v, shape=(1, d_v, 1))
-        self.out = ConvNorm(d_v, dim, bn_w_init=0.)
+        
+        # ablation: repconv or not
+        no_rep = kwargs.get('no_rep', False)
+        self.dwc = RepConv(attn_dim, attn_dim, k=dwc_kernel, g=attn_dim, res=True, use_sk=not no_rep)
+        
+        # ablation: use attn or not
+        # ablation: linear_attn or softmax_attn
+        self.no_attn = kwargs.get('no_attn', False)
+        if self.no_attn:
+            inner_dim = attn_dim
+            conv_1d = False
+            attn_type = 'None'
+        else:
+            inner_dim = d_v
+            conv_1d = True
+            use_sa = kwargs.get('use_sa', False)
+            if use_sa:
+                self.attn = self.softmax_attn
+                self.scale = d_qk ** -0.5
+                attn_type = 'Softmax'
+            else:
+                self.attn = self.linear_attn
+                self.eps = GLOBAL_EPS
+                self.kernel = get_act(attn_kernel)
+                attn_type = 'Linear'
+            self.attn_norm = get_norm(attn_norm, inner_dim, w_init=0.)
+            self.scale_v = Scale(inner_dim, shape=(1, inner_dim, 1))
+        self.attn_type = attn_type
+        
+        # ablation: use_gate or not
+        # ablation: which gate_act to use
+        gate_act = kwargs.get('gate_act', 'sigmoid')
+        gate_act = get_act(gate_act)
+        self.no_gate = kwargs.get('no_gate', False)
+        if not self.no_gate:  
+            self.g = ConvGate(attn_dim, inner_dim, act=gate_act, conv1d=conv_1d)
+        self.out = ConvNorm(inner_dim, dim, bn_w_init=0.)
     
-    def attn(self, q, k, v):
+    def extra_repr(self):
+        return self.attn_type
+    
+    def softmax_attn(self, q, k, v):
+        q = q * self.scale
+        attn = q.transpose(-2, -1) @ k
+        return v @ attn.softmax(-1).transpose(-2, -1)
+    
+    def linear_attn(self, q, k, v):
         q, kT = self.kernel(q), self.kernel(k).transpose(-1,-2)
         scale = kT.shape[-2] ** -0.5
         if use_linear(q, v):
@@ -66,11 +112,19 @@ class ELA(nn.Module):
     
     def forward(self, x):
         B, _, H, W = x.shape
-        x = self.dwc(self.proj(x)).flatten(2)  # local aggregation
-        q, k, v = x.split(self.slices, dim=1)
-        attn = self.attn(q, k, v) * self.g(x)  # input-dependent gating
-        attn = self.attn_norm(attn) + self.scale_v(v)  # res for stability
-        return self.out(attn.reshape(B, -1, H, W))
+        x = self.dwc(self.proj(x))  # local aggregation
+        if self.no_attn:
+            if not self.no_gate:
+                x = x * self.g(x)
+            return self.out(x)
+        else:
+            x = x.flatten(2)
+            q, k, v = x.split(self.slices, dim=1)
+            attn = self.attn(q, k, v)
+            if not self.no_gate:
+                attn = attn * self.g(x)  # input-dependent gating
+            attn = self.attn_norm(attn) + self.scale_v(v)  # res for stability
+            return self.out(attn.reshape(B, -1, H, W))
     
 
 class MLP(nn.Module):
@@ -86,12 +140,13 @@ class MLP(nn.Module):
 
 
 class ELABlock(nn.Module):
-    def __init__(self, dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel, mlp_ratio, act):
+    def __init__(self, dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel, mlp_ratio, act, **kwargs):
         super().__init__()
-        self.ela = ELA(dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel)
-        self.rs1 = Scale(dim)
+        no_rs = kwargs.get('no_rs', False)
+        self.ela = ELA(dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel, **kwargs)
+        self.rs1 = Scale(dim) if not no_rs else nn.Identity()
         self.mlp = MLP(dim, mlp_ratio, act)
-        self.rs2 = Scale(dim)
+        self.rs2 = Scale(dim) if not no_rs else nn.Identity()
 
     def forward(self, x):
         x = self.rs1(x) + self.ela(x)
@@ -99,16 +154,19 @@ class ELABlock(nn.Module):
 
 
 class MBConv(nn.Module):
-    def __init__(self, inp, oup, exp, k, s, act, fuse=False):
+    def __init__(self, inp, oup, exp, k, s, act, fuse=False, **kwargs):
         super().__init__()
         hid = int(oup * exp)
         res = (s == 1 and inp == oup)
+        
+        no_rep = kwargs.get('no_rep', False)
+        
         if fuse:
-            ops = [RepConv(inp, hid, k, s, res=res)]  # c,h,w -> hid,h/2,w/2
+            ops = [RepConv(inp, hid, k, s, res=res, use_sk=not no_rep)]  # c,h,w -> hid,h/2,w/2
         else:
             ops = [
                 ConvNorm(inp, hid), get_act(act),  # c -> hid
-                RepConv(hid, hid, k, s, g=hid, res=res) # h,w -> h/2,w/2
+                RepConv(hid, hid, k, s, g=hid, res=res, use_sk=not no_rep) # h,w -> h/2,w/2
             ]
         ops += [get_act(act), ConvNorm(hid, oup)]  # hid -> 2c 
         self.conv = nn.Sequential(*ops)
@@ -119,19 +177,20 @@ class MBConv(nn.Module):
 
 class BasicLayer(nn.Module):
     def __init__(self, inp, oup, depth, ds_exp, ds_kernel, ds_fuse, act, dwc_kernel, block_type, 
-                 attn_ratio, attn_kernel, attn_norm, mlp_ratio, use_checkpoint):
+                 attn_ratio, attn_kernel, attn_norm, mlp_ratio, use_checkpoint, **kwargs
+                 ):
         super().__init__()
         # downsample
-        blocks = [MBConv(inp=inp, oup=oup, exp=ds_exp, k=ds_kernel, s=2, act=act, fuse=ds_fuse)]
+        blocks = [MBConv(inp=inp, oup=oup, exp=ds_exp, k=ds_kernel, s=2, act=act, fuse=ds_fuse, **kwargs)]
         
         # blocks
         assert block_type in ['VLA', 'GAB'], f'block_type must be VLA or GAB, but got {block_type}'
         if block_type == 'GAB':
-            blocks += [GatedAggBlock(dim=oup, k=dwc_kernel, act=act) for _ in range(depth)]
+            blocks += [GatedAggBlock(dim=oup, k=dwc_kernel, act=act, **kwargs) for _ in range(depth)]
         else:
             blocks += [ELABlock(
                 dim=oup, attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,
-                dwc_kernel=dwc_kernel, mlp_ratio=mlp_ratio, act=act) for _ in range(depth)]
+                dwc_kernel=dwc_kernel, mlp_ratio=mlp_ratio, act=act, **kwargs) for _ in range(depth)]
         self.blocks = nn.ModuleList(blocks)
         self.cp = use_checkpoint
 
@@ -172,8 +231,7 @@ class Classifier(nn.Module):
             self.dist_head = None
         self.head = h
 
-
-class LiteVLA(nn.Module):
+class LiteVLA_AB(nn.Module):
     def __init__(self, inp=3, num_classes=1000, dims=(48, 96, 192, 384), 
                  depths=(2, 2, 11, 3), block_types=('GAB', 'GAB', 'VLA', 'VLA'), 
                  stem_kernel=5, ds_exp=4, ds_kernel=3, ds_fuse="ff--", act='silu', dwc_kernel=5,
@@ -188,7 +246,8 @@ class LiteVLA(nn.Module):
         
         # Stem
         dims = [dims[0] // 2, *dims]
-        self.stem = nn.Sequential(RepConv(inp, dims[0], k=stem_kernel, s=2), get_act(act))
+        no_rep = kwargs.get('no_rep', False)
+        self.stem = nn.Sequential(RepConv(inp, dims[0], k=stem_kernel, s=2, use_sk=not no_rep), get_act(act))
         
         # build layers [ DownSample + Blocks ] x 4
         self.layers = nn.ModuleList([BasicLayer(
@@ -196,6 +255,7 @@ class LiteVLA(nn.Module):
             ds_fuse=ds_fuse[i], act=act, dwc_kernel=dwc_kernel, block_type=block_types[i], 
             attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,
             mlp_ratio=mlp_ratio, use_checkpoint=use_checkpoint, 
+            **kwargs
         ) for i in range(len(depths))])
         dims.pop(0)
         
@@ -240,6 +300,59 @@ class LiteVLA(nn.Module):
         except Exception as e:
             print(f"(LiteVLA): Failed loading checkpoint form {ckpt}: {e}")
 
+
+
+def get_ablation_args(args):
+    args = args.get('ablation', "")
+    args = [a for a in args.split('-') if len(a) > 0]
+    
+    updates = dict()
+    for arg in args:
+        lst = arg.split(':')
+        assert len(lst) == 2 or len(lst) == 1
+        arg = lst[0]        
+
+        
+        ### residual connection in block
+        if arg == 'no_rs':
+            updates['no_rs'] = True
+            
+            
+        ### efficient linear attn
+        if arg == 'no_attn_norm':
+            updates['attn_norm'] = 'identity'
+            
+        if arg == 'no_attn':
+            updates['no_attn'] = True
+
+        if arg == 'use_sa':
+            updates['use_sa'] = True
+        
+        
+        ### input-dependent gating
+        if arg == 'gate_act':
+            updates['gate_act'] = lst[1]
+            
+        if arg == 'no_gate':
+            updates['no_gate'] = True
+            
+            
+        ### repconv
+        if arg == 'no_rep':
+            updates['no_rep'] = True
+            
+
+    return updates
+
+
+class LiteVLA(LiteVLA_AB):
+    def __init__(self, *args, **kwargs):
+        updates = get_ablation_args(kwargs)
+        kwargs.update(updates)
+        kwargs.pop('ablation', None)
+        super().__init__(*args, **kwargs)
+        
+        
 
 default_args = dict(
     inp=3, num_classes=1000, dims=48, 
@@ -309,4 +422,3 @@ try:
             LiteVLA.__init__(self, *args, **kwargs)
 except:
     pass
-
