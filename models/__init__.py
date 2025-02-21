@@ -1,4 +1,4 @@
-from .litevla import LiteVLA, create_litevla
+from .litevla import LiteVLA
 from .litevla_for_ab import LiteVLA as LiteVLA_AB
     
 def build_litevla_model(config, **kwargs):
@@ -54,3 +54,66 @@ def build_model(config, **kwargs):
         model = build_litevla_model(config, **kwargs)
     return model
 
+
+default_args = dict(
+    inp=3, num_classes=1000, dims=(48, 96, 192, 384), 
+    depths=(2, 2, 11, 3), block_types=('GAB', 'GAB', 'VLA', 'VLA'), 
+    stem_kernel=5, ds_exp=4, ds_kernel=3, ds_fuse="ff--", act='silu', dwc_kernel=5,
+    attn_ratio=1/8, attn_kernel='elu1', attn_norm='mrms', mlp_ratio=3, head_norm='mrms',
+    use_checkpoint=False, distillation=False,  # for training
+    backbone=False, out_indices=None, pretrained=None,  # for backbone
+)
+
+
+"""
+for image classification on imagenet-1k
+"""
+def create_litevla(name, **kwargs):
+    MODEL = LiteVLA
+    ablation = kwargs.pop('ablation', '')
+    if ablation != '' and len(ablation) > 0:
+        MODEL = LiteVLA_AB
+    
+    args = None
+    name = name.lower()
+    if name in ['tiny', 't']:
+        args = dict(dims=(32, 64, 128, 256), depths=(2, 2, 6, 2), ds_fuse="ffff", mlp_ratio=2)
+    if name in ['small', 's']:
+        args = dict(dims=(40, 80, 160, 320), ds_fuse="fff-")
+    if name in ['normal', 'n']:
+        args = dict(dims=(48, 96, 192, 384), ds_fuse="ff--")
+    if name in ['medium', 'm']:
+        args = dict(dims=(56, 112, 224, 448), ds_fuse="f---")
+    if name in ['large', 'l']:
+        args = dict(dims=(64, 128, 256, 512), ds_fuse="f---")
+    if args is None:
+        raise NotImplementedError(f"LiteVLA: version({name}) not implemented")
+    
+    return MODEL(**args, **kwargs)
+
+
+""" for mmdet """
+try:
+    from mmengine.model import BaseModule
+    from mmdet.registry import MODELS as MODELS_MMDET
+    
+    @MODELS_MMDET.register_module()
+    class MM_LITEVLA(BaseModule, LiteVLA):
+        def __init__(self, *args, **kwargs):
+            BaseModule.__init__(self)
+            LiteVLA.__init__(self, *args, **kwargs)
+except:
+    pass
+
+""" for mmseg """
+try:
+    from mmengine.model import BaseModule
+    from mmseg.registry import MODELS as MODELS_MMSEG
+    
+    @MODELS_MMSEG.register_module()
+    class MM_LITEVLA(BaseModule, LiteVLA):
+        def __init__(self, *args, **kwargs):
+            BaseModule.__init__(self)
+            LiteVLA.__init__(self, *args, **kwargs)
+except:
+    pass
