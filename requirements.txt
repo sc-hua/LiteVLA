@@ -8,3 +8,4 @@ tqdm
 yacs
 termcolor
 fvcore
+wandb
