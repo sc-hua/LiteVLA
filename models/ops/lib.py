@@ -61,3 +61,53 @@ def reparameterize_model(model: torch.nn.Module, inplace=False) -> torch.nn.Modu
 
     _fuse(model)
     return model
+
+
+# for flop and parameter count
+def fvcore_flop_count(model: torch.nn.Module, inputs=None, input_shape=(3, 224, 224), 
+                      show_table=False, show_arch=False, verbose=True):
+    from fvcore.nn.parameter_count import parameter_count as fvcore_parameter_count
+    from fvcore.nn.flop_count import flop_count, FlopCountAnalysis
+    from fvcore.nn.print_model_statistics import flop_count_str, flop_count_table
+
+    if inputs is None:
+        assert input_shape is not None
+        if len(input_shape) == 1:
+            input_shape = (1, 3, input_shape[0], input_shape[0])
+        elif len(input_shape) == 2:
+            input_shape = (1, 3, *input_shape)
+        elif len(input_shape) == 3:
+            input_shape = (1, *input_shape)
+        else:
+            assert len(input_shape) == 4
+
+        inputs = (torch.randn(input_shape).to(next(model.parameters()).device),)
+
+    model.eval()
+
+    Gflops, unsupported = flop_count(model=model, inputs=inputs)
+
+    flops_table = flop_count_table(
+        flops=FlopCountAnalysis(model, inputs),
+        max_depth=100,
+        activations=None,
+        show_param_shapes=True,
+    )
+
+    flops_str = flop_count_str(flops=FlopCountAnalysis(model, inputs), activations=None)
+
+    if show_arch:
+        print(flops_str)
+
+    if show_table:
+        print(flops_table)
+
+    params = fvcore_parameter_count(model)[""]
+    flops = sum(Gflops.values())
+
+    if verbose:
+        print(Gflops.items())
+        print("GFlops: ", flops, "Params: ", params, flush=True)
+
+    return params, flops
+

@@ -38,6 +38,11 @@ _C.DATA.PIN_MEMORY = True
 # Number of data loading threads
 _C.DATA.NUM_WORKERS = 8
 
+# [SimMIM] Mask patch size for MaskGenerator
+_C.DATA.MASK_PATCH_SIZE = 32
+# [SimMIM] Mask ratio for MaskGenerator
+_C.DATA.MASK_RATIO = 0.6
+
 # -----------------------------------------------------------------------------
 # Model settings
 # -----------------------------------------------------------------------------
@@ -121,6 +126,9 @@ _C.TRAIN.LR_SCHEDULER.DECAY_EPOCHS = 30
 _C.TRAIN.LR_SCHEDULER.DECAY_RATE = 0.1
 # warmup_prefix used in CosineLRScheduler
 _C.TRAIN.LR_SCHEDULER.WARMUP_PREFIX = True
+# [SimMIM] Gamma / Multi steps value, used in MultiStepLRScheduler
+_C.TRAIN.LR_SCHEDULER.GAMMA = 0.1
+_C.TRAIN.LR_SCHEDULER.MULTISTEPS = []
 
 # Optimizer
 _C.TRAIN.OPTIMIZER = CN()
@@ -131,6 +139,9 @@ _C.TRAIN.OPTIMIZER.EPS = 1e-8
 _C.TRAIN.OPTIMIZER.BETAS = (0.9, 0.999)
 # SGD momentum
 _C.TRAIN.OPTIMIZER.MOMENTUM = 0.9
+
+# [SimMIM] Layer decay for fine-tuning
+_C.TRAIN.LAYER_DECAY = 1.0
 
 # MoE
 _C.TRAIN.MOE = CN()

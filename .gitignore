@@ -4,3 +4,5 @@ coreml
 .onnx
 __pycache__
 dataset
+wandb
+output

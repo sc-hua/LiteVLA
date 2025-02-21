@@ -1,6 +1,27 @@
 import torch
 import torch.nn as nn
-from timm.layers.norm import GroupNorm1, LayerNorm2d, RmsNorm2d
+import torch.nn.functional as F
+from timm.layers.norm import GroupNorm1, LayerNorm2d
+
+def get_act(name):
+    if name == 'relu':
+        return nn.ReLU()
+    if name == 'gelu':
+        return nn.GELU()
+    if name == 'sigmoid':
+        return nn.Sigmoid()
+    if name == 'silu':
+        return nn.SiLU()
+    if name == 'elu1':
+        return ELU_1()
+    raise NotImplementedError(f'Unknown act: {name}')
+
+
+class ELU_1(nn.Module):
+    """ for linear attention """
+    def forward(self, x):
+        return F.elu(x) + 1
+
 
 
 def get_norm(name, dim, **kwargs):
@@ -31,10 +52,8 @@ def get_norm(name, dim, **kwargs):
         # can be implemented by setting group=1 in GroupNorm
         norm = GroupNorm1(dim, **kwargs)
         
-    # RMSNorm
-    if name == 'rms2d':  # implemented by timm
-        norm = RmsNorm2d(dim, **kwargs)
-    if name == 'mrms':  # ours
+    # Ours
+    if name == 'mrms':
         norm = ModifiedRMSNorm(dim, **kwargs)
     
     # init the values of weight and bias
