@@ -111,3 +111,11 @@ def fvcore_flop_count(model: torch.nn.Module, inputs=None, input_shape=(3, 224, 
 
     return params, flops
 
+
+# remove prefix
+def remove_prefix(name, prefix):
+    for p in [f"{prefix}{x}" for x in ['_', '.', '/', '-', '+']]:
+        name = name.replace(p, '')
+    return name
+
+

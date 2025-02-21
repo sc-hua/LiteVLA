@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from functools import partial
 from timm.layers import trunc_normal_, to_2tuple
-from models.ops.lib import GLOBAL_EPS, fuse_conv_bn, get_id_tensor
+from models.lib import GLOBAL_EPS, fuse_conv_bn, get_id_tensor
 
 
 class Scale(nn.Module):

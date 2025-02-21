@@ -1,5 +1,29 @@
+import timm
 from .litevla import LiteVLA
 from .litevla_for_ab import LiteVLA as LiteVLA_AB
+from .lib import remove_prefix
+
+
+""" 
+    Build model from config and kwargs 
+"""
+def build_model(config, **kwargs):
+    model = build_timm_model(config, **kwargs)
+    if model is None:
+        model = build_litevla_model(config, **kwargs)
+    return model
+
+def build_timm_model(config, is_pretrain=False, **kwargs):
+    model = None
+    model_type = config.MODEL.TYPE
+    model_type = model_type.lower()
+    if model_type.startswith('timm'):
+        model_type = remove_prefix(model_type, 'timm')
+        print(f"Loading timm model: {model_type}")
+        model = timm.create_model(model_type, pretrained=is_pretrain, **kwargs)
+        use_checkpoint = config.TRAIN.USE_CHECKPOINT or kwargs.pop('use_checkpoint', False)
+        model.set_grad_checkpointing(enable=use_checkpoint)
+    return model
     
 def build_litevla_model(config, **kwargs):
     model = None
@@ -34,27 +58,28 @@ def build_litevla_model(config, **kwargs):
     return model
 
 
-import timm
 
-def build_timm_model(config, is_pretrain=False, **kwargs):
-    model = None
-    model_type = config.MODEL.TYPE
-    if model_type.startswith('timm'):
-        for prefix in ['timm_', 'timm.', 'timm/', 'timm-', 'timm+']:
-            model_type = model_type.replace(prefix, '')
-        print(f"Loading timm model: {model_type}")
-        model = timm.create_model(model_type, pretrained=is_pretrain, **kwargs)
-        use_checkpoint = config.TRAIN.USE_CHECKPOINT or kwargs.pop('use_checkpoint', False)
-        model.set_grad_checkpointing(enable=use_checkpoint)
+""" 
+    Directly get model from name and kwargs 
+"""
+def create_model(name, **kwargs):
+    name = name.lower()
+    if name.startswith('timm'):
+        return create_timm_model(name, **kwargs)
+    elif name.startswith('litevla'):
+        return create_litevla(name, **kwargs)
+    else:
+        raise NotImplementedError(f'Unknown model: {name}')
+    
+    
+def create_timm_model(name, **kwargs):
+    name = remove_prefix(name, 'timm')
+    if kwargs.get('out_indices', None) is not None:
+        kwargs['features_only'] = True
+    model = timm.create_model(name, **kwargs)
     return model
-
-def build_model(config, **kwargs):
-    model = build_timm_model(config, **kwargs)
-    if model is None:
-        model = build_litevla_model(config, **kwargs)
-    return model
-
-
+    
+    
 default_args = dict(
     inp=3, num_classes=1000, dims=(48, 96, 192, 384), 
     depths=(2, 2, 11, 3), block_types=('GAB', 'GAB', 'VLA', 'VLA'), 
@@ -66,9 +91,11 @@ default_args = dict(
 
 
 """
-for image classification on imagenet-1k
+    for image classification on imagenet-1k
 """
 def create_litevla(name, **kwargs):
+    name = remove_prefix(name, 'litevla')
+    
     MODEL = LiteVLA
     ablation = kwargs.pop('ablation', '')
     if ablation != '' and len(ablation) > 0:
@@ -83,7 +110,7 @@ def create_litevla(name, **kwargs):
     if name in ['normal', 'n']:
         args = dict(dims=(48, 96, 192, 384), ds_fuse="ff--")
     if name in ['medium', 'm']:
-        args = dict(dims=(56, 112, 224, 448), ds_fuse="f---")
+        args = dict(dims=(56, 112, 224, 448), depths=(2, 2, 10, 4), ds_fuse="f---")
     if name in ['large', 'l']:
         args = dict(dims=(64, 128, 256, 512), ds_fuse="f---")
     if args is None:

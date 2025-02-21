@@ -5,7 +5,7 @@ from timm.layers import make_divisible
 from timm.utils.model import reparameterize_model
 
 from models.ops.conv import ConvNorm, RepConv, ConvGate, Scale
-from models.ops.lib import GLOBAL_EPS, use_linear
+from models.lib import GLOBAL_EPS, use_linear
 from models.ops.norm_act import get_norm, get_act
 
 
