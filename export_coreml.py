@@ -11,7 +11,7 @@ except ModuleNotFoundError:
 
 versions = [
     (None, (224, 224)),
-    ((0,1,2,3), (512, 512)),
+    # ((0,1,2,3), (512, 512)),
 ]
 
 # show_arch, show_table = True, True
@@ -19,7 +19,7 @@ show_arch, show_table = False, False
 
 for out_idx, img_size in versions:
     print(f'out_idx: {out_idx}, img_size: {img_size}')
-    version = 'litevla_n'
+    version = 'litevla_t'
     model = create_model(version, out_indices=out_idx)
     rep_model = reparameterize_model(model)
     

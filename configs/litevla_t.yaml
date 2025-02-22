@@ -3,8 +3,8 @@ MODEL:
   NAME: litevla_t
   LITEVLA:
     DIMS: [32, 64, 128, 256]
-    DEPTHS: [2, 2, 6, 2]
-    BLOCK_TYPES: ['GAB', 'GAB', 'VLA', 'VLA']
+    DEPTHS: [2, 2, 7, 3]
+    BLOCK_TYPES: ['GAB', 'GAB', 'GAB', 'VLA']
     STEM_KERNEL: 5
     DS_EXP: 4
     DS_KERNEL: 3
@@ -14,11 +14,11 @@ MODEL:
     ATTN_RATIO: 0.125
     ATTN_KERNEL: 'elu1'
     ATTN_NORM: 'mrms'
-    MLP_RATIO: 2
+    MLP_RATIO: 3
     HEAD_NORM: 'mrms'
 
 TRAIN:
   WARMUP_EPOCHS: 10
 
 # tiny
-# 0.60ms (iPhone 14)
+# 0.62ms (iPhone 14)

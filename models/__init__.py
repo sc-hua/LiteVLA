@@ -104,7 +104,8 @@ def create_litevla(name, **kwargs):
     args = None
     name = name.lower()
     if name in ['tiny', 't']:
-        args = dict(dims=(32, 64, 128, 256), depths=(2, 2, 6, 2), ds_fuse="ffff", mlp_ratio=2)
+        args = dict(dims=(32, 64, 128, 256), depths=(2, 2, 7, 3), 
+                    block_types=('GAB', 'GAB', 'GAB', 'VLA'), ds_fuse="ffff")
     if name in ['small', 's']:
         args = dict(dims=(40, 80, 160, 320), ds_fuse="fff-")
     if name in ['normal', 'n']:
