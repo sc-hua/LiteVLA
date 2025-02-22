@@ -3,7 +3,6 @@ analyze
 coreml
 .onnx
 __pycache__
-dataset
-datasets
+dataset/imagenet
 wandb
 output
