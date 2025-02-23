@@ -18,7 +18,7 @@ class GatedAggBlock(nn.Module):
         self.x = ConvNorm(dim, d)
         self.act = get_act(act)
         no_rep = kwargs.get('no_rep', False)
-        self.agg = nn.ModuleList(RepConv(d, d, k=k, g=d, use_sk=not no_rep) for _ in range(n))
+        self.agg = nn.ModuleList(RepConv(d, d, k=k, g=d, use_rep=not no_rep) for _ in range(n))
         
         self.no_gate = kwargs.get('no_gate', False)
         if not self.no_gate:
@@ -52,7 +52,7 @@ class ELA(nn.Module):
         
         # ablation: repconv or not
         no_rep = kwargs.get('no_rep', False)
-        self.dwc = RepConv(attn_dim, attn_dim, k=dwc_kernel, g=attn_dim, res=True, use_sk=not no_rep)
+        self.dwc = RepConv(attn_dim, attn_dim, k=dwc_kernel, g=attn_dim, res=True, use_rep=not no_rep)
         
         # ablation: use attn or not
         # ablation: linear_attn or softmax_attn
@@ -161,11 +161,11 @@ class MBConv(nn.Module):
         no_rep = kwargs.get('no_rep', False)
         
         if fuse:
-            ops = [RepConv(inp, hid, k, s, res=res, use_sk=not no_rep)]  # c,h,w -> hid,h/2,w/2
+            ops = [RepConv(inp, hid, k, s, res=res, use_rep=not no_rep)]  # c,h,w -> hid,h/2,w/2
         else:
             ops = [
                 ConvNorm(inp, hid), get_act(act),  # c -> hid
-                RepConv(hid, hid, k, s, g=hid, res=res, use_sk=not no_rep) # h,w -> h/2,w/2
+                RepConv(hid, hid, k, s, g=hid, res=res, use_rep=not no_rep) # h,w -> h/2,w/2
             ]
         ops += [get_act(act), ConvNorm(hid, oup)]  # hid -> 2c 
         self.conv = nn.Sequential(*ops)
@@ -246,7 +246,7 @@ class LiteVLA_AB(nn.Module):
         # Stem
         dims = [dims[0] // 2, *dims]
         no_rep = kwargs.get('no_rep', False)
-        self.stem = nn.Sequential(RepConv(inp, dims[0], k=stem_kernel, s=2, use_sk=not no_rep), get_act(act))
+        self.stem = nn.Sequential(RepConv(inp, dims[0], k=stem_kernel, s=2, use_rep=not no_rep), get_act(act))
         
         # build layers [ DownSample + Blocks ] x 4
         self.layers = nn.ModuleList([BasicLayer(

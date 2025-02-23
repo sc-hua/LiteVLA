@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from timm.layers.norm import GroupNorm1, LayerNorm2d
 
 def get_act(name):
+    name = name.lower()
     if name == 'relu':
         return nn.ReLU()
     if name == 'gelu':
@@ -14,6 +15,8 @@ def get_act(name):
         return nn.SiLU()
     if name == 'elu1':
         return ELU_1()
+    if name in ['id', 'identity']:
+        return nn.Identity()
     raise NotImplementedError(f'Unknown act: {name}')
 
 
@@ -25,6 +28,7 @@ class ELU_1(nn.Module):
 
 
 def get_norm(name, dim, **kwargs):
+    name = name.lower()
     if name in ['id', 'identity']:
         return nn.Identity()
     
@@ -68,8 +72,7 @@ def get_norm(name, dim, **kwargs):
 
 
 class ModifiedRMSNorm(nn.Module):
-    r"""
-    Modified Root Mean Square Normalization.
+    r""" Modified Root Mean Square Normalization.
     The only difference with RMSNorm is that MRMSNorm is taken over all dimensions 
     except the batch dimension.
     
@@ -83,8 +86,7 @@ class ModifiedRMSNorm(nn.Module):
         affine (boolean): whether to use affine transformation, default: True
         
     Shape:
-        - Input: (B, C, *)
-        - Output: (B, C, *)
+        - Input / Output: (B, C, *)
     """
     def __init__(self, dim, eps=1e-5, w_init=1., affine=True):
         super().__init__()

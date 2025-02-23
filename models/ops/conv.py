@@ -7,6 +7,14 @@ from models.lib import GLOBAL_EPS, fuse_conv_bn, get_id_tensor
 
 
 class Scale(nn.Module):
+    r""" Learnable scale for specified dimension(s)
+
+    Args:
+        dim (int): number of channels
+        init_value (float): initial value of scale
+        shape (tuple): shape of scale vector when element-wise multiply
+            Default: None, which means shape = (1, dim, 1, 1), suitable for (B, C, H, W)
+    """
     def __init__(self, dim, init_value=1., shape=None):
         super().__init__()
         self.shape = (1, dim, 1, 1) if shape is None else shape
@@ -17,6 +25,14 @@ class Scale(nn.Module):
 
 
 class ConvNorm(nn.Sequential):
+    r""" Convolution with normalization
+
+    Args:
+        inp, oup (int): number of input / output channels
+        k, s, p, d, g (int): kernel size, stride, padding, dilation, groups
+        bn_w_init (float): weight initialization, Default: 1.
+            Suggestion: use 0. when this module directly add residual, kinda like LayerScaleInit=0. ?
+    """
     def __init__(self, inp, oup, k=1, s=1, p=0, d=1, g=1, bn_w_init=1.):
         super().__init__()
         self.conv_args = (inp, oup, k, s, p, d, g)
@@ -35,7 +51,17 @@ class ConvNorm(nn.Sequential):
 
 
 class RepConv(nn.Module):
-    def __init__(self, inp, oup, k=1, s=1, g=1, use_sk=True, res=False, bn_w_init=1.):
+    r""" Re-parameterized Convolution
+    
+    Args:
+        inp, oup (int): number of input / output channels
+        k, s, g (int): kernel size, stride, groups
+        use_rep (bool): whether to use reparameterization (mutil-kernel conv), Default: True
+        res (bool): whether to use skip connection, Default: False
+        bn_w_init (float): weight initialization, Default: 1.
+            Suggestion: use 0. when this module directly add residual
+    """
+    def __init__(self, inp, oup, k=1, s=1, g=1, use_rep=True, res=False, bn_w_init=1.):
         super().__init__()
         self.kernel = to_2tuple(k)
         self.res = res
@@ -46,7 +72,7 @@ class RepConv(nn.Module):
             bn_w_init = 0.
         
         # make sure k > 0
-        k_lst = [x for x in range(k, -1, -2) if x > 0] if use_sk else [k]
+        k_lst = [x for x in range(k, -1, -2) if x > 0] if use_rep else [k]
         self.ops = nn.ModuleList([
             ConvNorm(inp, oup, _k, s, (_k // 2), g=g, bn_w_init=bn_w_init) 
             for _k in k_lst
@@ -105,6 +131,13 @@ class RepConv(nn.Module):
 
 
 class BNLinear(nn.Sequential):
+    r""" Batch Normalization + Linear
+    
+    Args:
+        inp, oup (int): number of input / output channels
+        std (float): standard deviation, Default: 0.02
+        use_conv2d (bool): whether to use conv2d (kernel=1) instead of linear, Default: False
+    """
     def __init__(self, inp, oup, std=0.02, use_conv2d=False):
         super().__init__()
         bn = nn.BatchNorm2d(inp) if use_conv2d else nn.BatchNorm1d(inp)
@@ -137,6 +170,13 @@ class BNLinear(nn.Sequential):
 
 
 def ConvGate(inp, oup, act, conv1d=False):
+    r""" Conv(Linear) + Gate
+    
+    Args:
+        inp, oup (int): number of input / output channels
+        act (None or nn.Module): activation function
+        conv1d (bool): whether to use conv1d instead of conv2d, Default: False
+    """
     Conv = nn.Conv1d if conv1d else nn.Conv2d
     c = Conv(inp, oup, kernel_size=1, bias=True)
     # override init of c, set weight near zero, bias=1
@@ -145,9 +185,8 @@ def ConvGate(inp, oup, act, conv1d=False):
     nn.init.ones_(c.bias)
     if act is None:
         return c
+    
     # !!! NOTE: act should be an instance, not a class !!!
-    act_is_class = (isinstance(act, type) and issubclass(act, nn.Module))  # more adaptive
-    act = act() if act_is_class else act # If act is a class (e.g., nn.ReLU), instantiate it
     assert isinstance(act, nn.Module), f"Expected `act({act})` to be an `nn.Module` instance."
     return nn.Sequential(c, act)
 
