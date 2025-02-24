@@ -68,9 +68,13 @@ model = dict(
 )
 
 # optimizer
-# same with poolformer
 optim_wrapper = dict(
     type='AmpOptimWrapper', 
+    # TODO [HSC]: remove after check if this will impact performance
+    paramwise_cfg=dict(custom_keys={'norm': dict(decay_mult=0.)},
+        # norm_decay_mult=0.0  # TODO [HSC]: check if this will impact performance
+    ),
+    # END
     optimizer=dict(
         type='AdamW', 
         lr=0.0001, 
