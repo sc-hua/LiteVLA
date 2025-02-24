@@ -13,7 +13,7 @@ from mmseg.registry import RUNNERS
 import sys
 sys.path.append("../../")
 
-import model
+import models
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a segmentor')

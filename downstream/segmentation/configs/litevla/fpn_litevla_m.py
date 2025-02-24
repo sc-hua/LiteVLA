@@ -30,4 +30,4 @@ visualizer = dict(vis_backends=vis_backends)
 # train
 # cd segmentation/
 # export CUDA_VISIBLE_DEVICES=5,4,3,2,1,0
-# PORT=29503 bash ./tools/dist_train.sh configs/litevla/fpn_litevla_m.py 4 --work-dir work_dirs/litevla_m
+# PORT=29503 bash ./tools/dist_train.sh configs/litevla/fpn_litevla_m.py 4 --work-dir output/litevla_m

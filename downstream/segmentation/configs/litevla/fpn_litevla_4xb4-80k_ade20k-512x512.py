@@ -64,6 +64,7 @@ test_evaluator = val_evaluator
 
 # model settings
 model = dict(
+    pretrained=None,  # override default ckpt path
     data_preprocessor=data_preprocessor,
 )
 
