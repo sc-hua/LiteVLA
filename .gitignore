@@ -6,3 +6,5 @@ __pycache__
 dataset/imagenet
 wandb
 output
+downstream/segmentation/data
+pretrained_ckpt

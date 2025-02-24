@@ -9,9 +9,9 @@ model = dict(
         version='litevla_m',
         backbone=True,
         out_indices=(0, 1, 2, 3),
-        pretrained="../../ckpts/litevla_m.pth"  # TODO [HSC]: change to github release url later
+        pretrained="pretrained/litevla_m.pth"  # TODO [HSC]: change to github release url later
     ),
-    neck=dict(in_channels=(48, 96, 192, 384)),
+    neck=dict(in_channels=[48, 96, 192, 384]),
 )
 
 train_dataloader = dict(batch_size=4)  # as gpus=4

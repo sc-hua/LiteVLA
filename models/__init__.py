@@ -161,7 +161,7 @@ if has_mmdet and has_mmseg:
             if version is None:
                 version = 'litevla_n'
                 print('\t\t>> LiteVLA: version is not specified, use default: LiteVLA-N')
-            version_args = get_litevla_version_args(remove_prefix(name, 'litevla'))
+            version_args = get_litevla_version_args(remove_prefix(version, 'litevla'))
             # [caution]: kwargs will override version_args
             kwargs = {**version_args, **kwargs}
             

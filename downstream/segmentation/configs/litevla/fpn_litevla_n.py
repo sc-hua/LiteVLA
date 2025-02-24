@@ -6,11 +6,10 @@ model = dict(
         _delete_=True,
         type='MM_LITEVLA',
         version='litevla_n',
-        backbone=True,
         out_indices=(0, 1, 2, 3),
-        pretrained="../../ckpts/litevla_n.pth"  # TODO [HSC]: change to github release url later
+        pretrained="pretrained/litevla_n.pth"  # TODO [HSC]: change to github release url later
     ),
-    neck=dict(in_channels=(48, 96, 192, 384)),  # channels of each stage
+    neck=dict(in_channels=[48, 96, 192, 384]),  # channels of each stage
     decode_head=dict(num_classes=150),
 )
 

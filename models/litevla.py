@@ -325,7 +325,7 @@ class LiteVLA(nn.Module):
             assert len(self.out_indices) > 0, 'len(out_indices) sould > 0'
 
     def forward_features(self, x):
-        out=[]
+        out = []
         x = self.stem(x)
         for i, layer in enumerate(self.layers):
             x = layer(x)
