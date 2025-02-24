@@ -6,4 +6,3 @@ __pycache__
 dataset/imagenet
 wandb
 output
-downstream
