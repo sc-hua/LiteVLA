@@ -90,6 +90,26 @@ default_args = dict(
 )
 
 
+
+def get_litevla_version_args(version):
+    version_args = None
+    if version in ['tiny', 't']:
+        version_args = dict(dims=(32, 64, 128, 256), depths=(2, 2, 7, 3),
+                      block_types=('GAB', 'GAB', 'GAB', 'VLA'), ds_fuse="ffff")
+    if version in ['small', 's']:
+        version_args = dict(dims=(40, 80, 160, 320), ds_fuse="fff-")
+    if version in ['normal', 'n']:
+        version_args = dict(dims=(48, 96, 192, 384), ds_fuse="ff--")
+    if version in ['medium', 'm']:
+        version_args = dict(dims=(56, 112, 224, 448), depths=(2, 2, 10, 4), ds_fuse="f---")
+    if version in ['large', 'l']:
+        version_args = dict(dims=(64, 128, 256, 512), ds_fuse="f---")
+    if version_args is None:
+        raise NotImplementedError(f"LiteVLA: version({version}) not implemented")
+    return version_args
+
+
+
 """
     for image classification on imagenet-1k
 """
@@ -101,47 +121,48 @@ def create_litevla(name, **kwargs):
     if ablation != '' and len(ablation) > 0:
         MODEL = LiteVLA_AB
     
-    args = None
-    name = name.lower()
-    if name in ['tiny', 't']:
-        args = dict(dims=(32, 64, 128, 256), depths=(2, 2, 7, 3), 
-                    block_types=('GAB', 'GAB', 'GAB', 'VLA'), ds_fuse="ffff")
-    if name in ['small', 's']:
-        args = dict(dims=(40, 80, 160, 320), ds_fuse="fff-")
-    if name in ['normal', 'n']:
-        args = dict(dims=(48, 96, 192, 384), ds_fuse="ff--")
-    if name in ['medium', 'm']:
-        args = dict(dims=(56, 112, 224, 448), depths=(2, 2, 10, 4), ds_fuse="f---")
-    if name in ['large', 'l']:
-        args = dict(dims=(64, 128, 256, 512), ds_fuse="f---")
-    if args is None:
-        raise NotImplementedError(f"LiteVLA: version({name}) not implemented")
-    
-    return MODEL(**args, **kwargs)
+    return MODEL(**{
+        **get_litevla_version_args(name), 
+        **kwargs, # [caution]: kwargs will override version_args
+    })
 
 
-""" for mmdet """
+
+""" 
+    for downstream: Object Detection / Semantic Segmentation
+"""
+has_mmdet = True
+has_mmseg = True
+
 try:
     from mmengine.model import BaseModule
     from mmdet.registry import MODELS as MODELS_MMDET
+except ImportError:
+    # print('\t\t>> If for Object Detection, please install mmdetection first.')
+    has_mmdet = False
+
+try: 
+    from mmengine.model import BaseModule
+    from mmseg.registry import MODELS as MODELS_MMSEG
+except ImportError:
+    # print('\t\t>> If for Semantic Segmentation, please install mmsegmentation first.')
+    has_mmseg = False
     
+
+if has_mmdet and has_mmseg:
+    @MODELS_MMSEG.register_module()
     @MODELS_MMDET.register_module()
     class MM_LITEVLA(BaseModule, LiteVLA):
         def __init__(self, *args, **kwargs):
             BaseModule.__init__(self)
+            
+            # specify model version
+            version = kwargs.pop('version', None)
+            if version is None:
+                version = 'litevla_n'
+                print('\t\t>> LiteVLA: version is not specified, use default: LiteVLA-N')
+            version_args = get_litevla_version_args(remove_prefix(name, 'litevla'))
+            # [caution]: kwargs will override version_args
+            kwargs = {**version_args, **kwargs}
+            
             LiteVLA.__init__(self, *args, **kwargs)
-except:
-    pass
-
-""" for mmseg """
-try:
-    from mmengine.model import BaseModule
-    from mmseg.registry import MODELS as MODELS_MMSEG
-    
-    @MODELS_MMSEG.register_module()
-    class MM_LITEVLA(BaseModule, LiteVLA):
-        def __init__(self, *args, **kwargs):
-            BaseModule.__init__(self)
-            LiteVLA.__init__(self, *args, **kwargs)
-except:
-    pass
