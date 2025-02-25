@@ -58,7 +58,7 @@ def get_norm(name, dim, **kwargs):
         
     # Ours
     if name == 'mrms':
-        norm = ModifiedRMSNorm(dim, **kwargs)
+        norm = ModifiedRMSNorm(dim, w_init=w_init, **kwargs)
     
     # init the values of weight and bias
     if norm is not None:

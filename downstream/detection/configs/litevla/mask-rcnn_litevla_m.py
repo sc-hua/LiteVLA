@@ -7,9 +7,8 @@ model = dict(
         _delete_=True,
         type='MM_LITEVLA',
         version='litevla_m',
-        backbone=True,
         out_indices=(0, 1, 2, 3),
-        pretrained="pretrained/litevla_m.pth"  # TODO [HSC]: change to github release url later
+        pretrained="pretrained_ckpt/litevla_m.pth"  # TODO [HSC]: change to github release url later
     ),
     neck=dict(in_channels=[48, 96, 192, 384]),
 )

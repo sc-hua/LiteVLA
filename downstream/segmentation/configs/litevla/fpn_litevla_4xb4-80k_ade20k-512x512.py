@@ -77,6 +77,7 @@ optim_wrapper = dict(
     ),
     # END
     optimizer=dict(
+        _delete_=True,
         type='AdamW', 
         lr=0.0001, 
         weight_decay=0.0001
