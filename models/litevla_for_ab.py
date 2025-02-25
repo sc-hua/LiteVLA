@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint as cp
-from timm.layers import make_divisible
+from timm.layers import make_divisible, DropPath
 from timm.utils.model import reparameterize_model
 
 from models.ops.conv import ConvNorm, RepConv, ConvGate, Scale
@@ -10,7 +10,7 @@ from models.ops.norm_act import get_norm, get_act
 
 
 class GatedAggBlock(nn.Module):
-    def __init__(self, dim, k, act, n=2, e=0.5, **kwargs):
+    def __init__(self, dim, k, act, drop_path, n=2, e=0.5, **kwargs):
         super().__init__()
         d = int(dim * e)
         d_out = (n + 1) * d
@@ -26,6 +26,7 @@ class GatedAggBlock(nn.Module):
             gate_act = get_act(gate_act)
             self.g = ConvGate(dim, d_out, act=gate_act)
         self.out = ConvNorm(d_out, dim, bn_w_init=0.)
+        self.dp = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.rs = Scale(dim)
 
     def forward(self, x):
@@ -36,7 +37,8 @@ class GatedAggBlock(nn.Module):
         y = torch.cat(y, 1)
         if not self.no_gate:
             y = y * self.g(x)
-        return self.out(y) + self.rs(x)
+        y = self.out(y)
+        return self.rs(x) + self.dp(y)
     
 
 class ELA(nn.Module):
@@ -139,17 +141,20 @@ class MLP(nn.Module):
 
 
 class ELABlock(nn.Module):
-    def __init__(self, dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel, mlp_ratio, act, **kwargs):
+    def __init__(self, dim, attn_ratio, attn_kernel, attn_norm, 
+                 dwc_kernel, mlp_ratio, act, drop_path, **kwargs):
         super().__init__()
         no_rs = kwargs.get('no_rs', False)
         self.ela = ELA(dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel, **kwargs)
+        self.dp1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.rs1 = Scale(dim) if not no_rs else nn.Identity()
         self.mlp = MLP(dim, mlp_ratio, act)
+        self.dp2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.rs2 = Scale(dim) if not no_rs else nn.Identity()
 
     def forward(self, x):
-        x = self.rs1(x) + self.ela(x)
-        return self.rs2(x) + self.mlp(x)
+        x = self.rs1(x) + self.dp1(self.ela(x))
+        return self.rs2(x) + self.dp2(self.mlp(x))
 
 
 class MBConv(nn.Module):
@@ -176,7 +181,7 @@ class MBConv(nn.Module):
 
 class BasicLayer(nn.Module):
     def __init__(self, inp, oup, depth, ds_exp, ds_kernel, ds_fuse, act, dwc_kernel, block_type, 
-                 attn_ratio, attn_kernel, attn_norm, mlp_ratio, use_checkpoint, **kwargs
+                 attn_ratio, attn_kernel, attn_norm, mlp_ratio, dp_rates, use_checkpoint, **kwargs
                  ):
         super().__init__()
         # downsample
@@ -185,11 +190,11 @@ class BasicLayer(nn.Module):
         # blocks
         assert block_type in ['VLA', 'GAB'], f'block_type must be VLA or GAB, but got {block_type}'
         if block_type == 'GAB':
-            blocks += [GatedAggBlock(dim=oup, k=dwc_kernel, act=act, **kwargs) for _ in range(depth)]
+            blocks += [GatedAggBlock(dim=oup, k=dwc_kernel, act=act, drop_path=dp_rates[i], **kwargs) for i in range(depth)]
         else:
             blocks += [ELABlock(
                 dim=oup, attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,
-                dwc_kernel=dwc_kernel, mlp_ratio=mlp_ratio, act=act, **kwargs) for _ in range(depth)]
+                dwc_kernel=dwc_kernel, mlp_ratio=mlp_ratio, act=act, drop_path=dp_rates[i], **kwargs) for i in range(depth)]
         self.blocks = nn.ModuleList(blocks)
         self.cp = use_checkpoint
 
@@ -235,6 +240,7 @@ class LiteVLA_AB(nn.Module):
                  depths=(2, 2, 11, 3), block_types=('GAB', 'GAB', 'VLA', 'VLA'), 
                  stem_kernel=5, ds_exp=4, ds_kernel=3, ds_fuse="ff--", act='silu', dwc_kernel=5,
                  attn_ratio=1/8, attn_kernel='elu1', attn_norm='mrms', mlp_ratio=3, head_norm='mrms',
+                 drop_path_rate=0.,
                  use_checkpoint=False, distillation=False,  # for training
                  backbone=False, out_indices=None, pretrained=None,  # for backbone
                  **kwargs):
@@ -249,11 +255,13 @@ class LiteVLA_AB(nn.Module):
         self.stem = nn.Sequential(RepConv(inp, dims[0], k=stem_kernel, s=2, use_rep=not no_rep), get_act(act))
         
         # build layers [ DownSample + Blocks ] x 4
+        dpr_lst = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         self.layers = nn.ModuleList([BasicLayer(
             inp=dims[i], oup=dims[i+1], depth=depths[i], ds_exp=ds_exp, ds_kernel=ds_kernel, 
             ds_fuse=ds_fuse[i], act=act, dwc_kernel=dwc_kernel, block_type=block_types[i], 
             attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,
-            mlp_ratio=mlp_ratio, use_checkpoint=use_checkpoint, 
+            mlp_ratio=mlp_ratio, dp_rates=dpr_lst[sum(depths[:i]):sum(depths[:i+1])], 
+            use_checkpoint=use_checkpoint, 
             **kwargs
         ) for i in range(len(depths))])
         dims.pop(0)

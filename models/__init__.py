@@ -47,7 +47,7 @@ def build_litevla_model(config, **kwargs):
             attn_norm=config.MODEL.LITEVLA.ATTN_NORM,
             mlp_ratio=config.MODEL.LITEVLA.MLP_RATIO,
             head_norm=config.MODEL.LITEVLA.HEAD_NORM,
-            # drop_path_ratio=config.MODEL.DROP_PATH_RATE,
+            drop_path_rate=config.MODEL.DROP_PATH_RATE,
             use_checkpoint=config.TRAIN.USE_CHECKPOINT or kwargs.pop('use_checkpoint', False),
             distillation=config.MODEL.LITEVLA.DISTILLATION or kwargs.pop('distillation', False),
             backbone=config.MODEL.LITEVLA.BACKBONE or kwargs.pop('backbone', False),

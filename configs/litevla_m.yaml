@@ -1,6 +1,7 @@
 MODEL:
   TYPE: litevla
   NAME: litevla_m
+  # DROP_PATH_RATE: 0.1
   LITEVLA:
     DIMS: [56, 112, 224, 448]
     DEPTHS: [2, 2, 11, 3]

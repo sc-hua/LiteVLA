@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint as cp
-from timm.layers import make_divisible
+from timm.layers import make_divisible, DropPath
 from timm.utils.model import reparameterize_model
 
 from models.ops.conv import ConvNorm, RepConv, ConvGate, Scale
@@ -16,10 +16,11 @@ class GatedAggBlock(nn.Module):
         dim (int): number of channels
         k (int): kernel size of depthwise convolution in aggregation
         act (str): activation function after depthwise convolution
-        n (int): number of aggregation blocks
-        e (float): expansion ratio of aggregation branch
+        drop_path (float): drop path rate
+        n (int): number of aggregation blocks, Default: 2
+        e (float): expansion ratio of aggregation branch, Default: 0.5
     """
-    def __init__(self, dim, k, act, n=2, e=0.5):
+    def __init__(self, dim, k, act, drop_path, n=2, e=0.5):
         super().__init__()
         d = int(dim * e)
         d_out = (n + 1) * d
@@ -29,6 +30,7 @@ class GatedAggBlock(nn.Module):
         self.agg = nn.ModuleList(RepConv(d, d, k=k, g=d) for _ in range(n))
         self.g = ConvGate(dim, d_out, act=nn.Sigmoid())
         self.out = ConvNorm(d_out, dim, bn_w_init=0.)
+        self.dp = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.rs = Scale(dim)
 
     def forward(self, x):
@@ -37,7 +39,8 @@ class GatedAggBlock(nn.Module):
             z = y[-1]
             y.append(z + self.act(agg(z)))
         y = torch.cat(y, 1) * self.g(x)
-        return self.out(y) + self.rs(x)
+        y = self.out(y)
+        return self.rs(x) + self.dp(y)
     
 
 class ELA(nn.Module):
@@ -126,17 +129,21 @@ class ELABlock(nn.Module):
         dwc_kernel (int): depthwise convolution kernel size
         mlp_ratio (float): ratio to expand channel
         act (str): activation function
+        drop_path (float): drop path rate
     """
-    def __init__(self, dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel, mlp_ratio, act):
+    def __init__(self, dim, attn_ratio, attn_kernel, attn_norm, 
+                 dwc_kernel, mlp_ratio, act, drop_path):
         super().__init__()
         self.ela = ELA(dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel)
+        self.dp1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.rs1 = Scale(dim)
         self.mlp = MLP(dim, mlp_ratio, act)
+        self.dp2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.rs2 = Scale(dim)
 
     def forward(self, x):
-        x = self.rs1(x) + self.ela(x)
-        return self.rs2(x) + self.mlp(x)
+        x = self.rs1(x) + self.dp1(self.ela(x))
+        return self.rs2(x) + self.dp2(self.mlp(x))
 
 
 class MBConv(nn.Module):
@@ -186,10 +193,11 @@ class BasicLayer(nn.Module):
         attn_kernel (str): kernel function for linear attention
         attn_norm (str): normalization after linear attention
         mlp_ratio (float): ratio to expand channel
+        drop_rates (list): drop path rate list for each block in this stage
         use_checkpoint (bool): whether to use checkpoint to reduce memory usage
     """
     def __init__(self, inp, oup, depth, ds_exp, ds_kernel, ds_fuse, act, dwc_kernel, 
-                 block_type, attn_ratio, attn_kernel, attn_norm, mlp_ratio, 
+                 block_type, attn_ratio, attn_kernel, attn_norm, mlp_ratio, dp_rates,
                  use_checkpoint=False, **kwargs):
         super().__init__()
         
@@ -199,12 +207,15 @@ class BasicLayer(nn.Module):
         # blocks
         block_types = ['VLA', 'GAB']
         assert block_type in block_types, f'block_type({block_type}) must be one of {block_types}'
-        if block_type == 'GAB':
-            blocks += [GatedAggBlock(dim=oup, k=dwc_kernel, act=act) for _ in range(depth)]
-        else:
-            blocks += [ELABlock(
-                dim=oup, attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,
-                dwc_kernel=dwc_kernel, mlp_ratio=mlp_ratio, act=act) for _ in range(depth)]
+        for i in range(depth):
+            blocks.append(
+                GatedAggBlock(dim=oup, k=dwc_kernel, act=act, drop_path=dp_rates[i])
+                if block_type == 'GAB' else
+                ELABlock(
+                    dim=oup, attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,  
+                    dwc_kernel=dwc_kernel, mlp_ratio=mlp_ratio, act=act, drop_path=dp_rates[i]
+                ) 
+            )
         self.blocks = nn.ModuleList(blocks)
         self.cp = use_checkpoint
 
@@ -275,6 +286,7 @@ class LiteVLA(nn.Module):
         attn_norm (str): normalization after linear attention
         mlp_ratio (float): ratio to expand channel
         head_norm (str): normalization before linear head
+        drop_path_rate (float): drop path rate for network, Default: 0.
         use_checkpoint (bool): whether to use checkpoint to reduce memory usage, Default: False
         distillation (bool): whether to use distillation, Default: False
         backbone (bool): return model without classifier, Default: False
@@ -285,7 +297,7 @@ class LiteVLA(nn.Module):
                  depths=(2, 2, 11, 3), block_types=('GAB', 'GAB', 'VLA', 'VLA'), 
                  stem_kernel=5, ds_exp=4, ds_kernel=3, ds_fuse="ff--", act='silu', dwc_kernel=5,
                  attn_ratio=1/8, attn_kernel='elu1', attn_norm='mrms', mlp_ratio=3, head_norm='mrms',
-                 use_checkpoint=False, distillation=False,  # for training
+                 drop_path_rate=0., use_checkpoint=False, distillation=False,  # for training
                  backbone=False, out_indices=None, pretrained=None,  # for backbone
                  **kwargs):
         super().__init__()
@@ -301,11 +313,13 @@ class LiteVLA(nn.Module):
         self.stem = nn.Sequential(RepConv(inp, dims[0], k=stem_kernel, s=2), get_act(act))
         
         # build layers [ DownSample + Blocks ] x 4
+        dpr_lst = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         self.layers = nn.ModuleList([BasicLayer(
             inp=dims[i], oup=dims[i+1], depth=depths[i], ds_exp=ds_exp, ds_kernel=ds_kernel, 
             ds_fuse=ds_fuse[i], act=act, dwc_kernel=dwc_kernel, block_type=block_types[i], 
             attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,
-            mlp_ratio=mlp_ratio, use_checkpoint=use_checkpoint, 
+            mlp_ratio=mlp_ratio, dp_rates=dpr_lst[sum(depths[:i]):sum(depths[:i+1])], 
+            use_checkpoint=use_checkpoint, 
         ) for i in range(len(depths))])
         dims.pop(0)
         
