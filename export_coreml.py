@@ -19,7 +19,7 @@ show_arch, show_table = False, False
 
 for out_idx, img_size in versions:
     print(f'out_idx: {out_idx}, img_size: {img_size}')
-    version = 'litevla_s'
+    version = 'litevla_m'
     model = create_model(version, out_indices=out_idx)
     rep_model = reparameterize_model(model)
     

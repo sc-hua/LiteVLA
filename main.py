@@ -108,7 +108,7 @@ def parse_option():
 
     parser.add_argument('--no-wandb', action='store_true', help='Disable wandb')
     parser.add_argument('--save-all', action='store_true', help='Save all checkpoint files.')
-    parser.add_argument('--min-ckpt-num', type=int, default=3, help='Minimum number of saved checkpoint files.')
+    parser.add_argument('--min-ckpt-num', type=int, default=2, help='Minimum number of saved checkpoint files.')
 
 
     args, unparsed = parser.parse_known_args()

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint as cp
+from torch.nn.modules.batchnorm import _BatchNorm
 from timm.layers import make_divisible, DropPath
 from timm.utils.model import reparameterize_model
 
@@ -280,6 +281,17 @@ class LiteVLA_AB(nn.Module):
             assert isinstance(out_indices, (tuple, list)), 'out_indices should be tuple or list'
             assert max(self.out_indices) < len(self.layers), 'out_indices should < len(layers)'
             assert len(self.out_indices) > 0, 'len(out_indices) sould > 0'
+    
+    # TODO [HSC]: check if this could improve performance
+    #         self.train()
+    
+    # def train(self, mode=True):
+    #     """Convert the model into training mode while keep layers freezed."""
+    #     super(LiteVLA_AB, self).train(mode)
+    #     if mode:
+    #         for m in self.modules():
+    #             if isinstance(m, _BatchNorm):
+    #                 m.eval()
 
     def forward_features(self, x):
         out=[]
