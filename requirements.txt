@@ -1,5 +1,5 @@
 timm
-"numpy<2"
+numpy<2
 pandas
 Pillow
 tqdm
