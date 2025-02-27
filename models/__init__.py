@@ -42,6 +42,7 @@ def build_litevla_model(config, **kwargs):
             ds_fuse=config.MODEL.LITEVLA.DS_FUSE,
             act=config.MODEL.LITEVLA.ACT,
             dwc_kernel=config.MODEL.LITEVLA.DWC_KERNEL,
+            agg_ratio=config.MODEL.LITEVLA.AGG_RATIO,
             attn_ratio=config.MODEL.LITEVLA.ATTN_RATIO,
             attn_kernel=config.MODEL.LITEVLA.ATTN_KERNEL,
             attn_norm=config.MODEL.LITEVLA.ATTN_NORM,
@@ -94,7 +95,7 @@ default_args = dict(
 def get_litevla_version_args(version):
     version_args = None
     if version in ['tiny', 't']:
-        version_args = dict(dims=(32, 64, 128, 256), depths=(2, 2, 7, 3),
+        version_args = dict(dims=(32, 64, 128, 256), depths=(1, 2, 7, 2), agg_ratio=1,
                       block_types=('GAB', 'GAB', 'GAB', 'VLA'), ds_fuse="ffff")
     if version in ['small', 's']:
         version_args = dict(dims=(40, 80, 160, 320), ds_fuse="fff-")

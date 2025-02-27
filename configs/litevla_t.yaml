@@ -3,7 +3,7 @@ MODEL:
   NAME: litevla_t
   LITEVLA:
     DIMS: [32, 64, 128, 256]
-    DEPTHS: [2, 2, 7, 3]
+    DEPTHS: [1, 2, 7, 2]
     BLOCK_TYPES: ['GAB', 'GAB', 'GAB', 'VLA']
     STEM_KERNEL: 5
     DS_EXP: 4
@@ -11,6 +11,7 @@ MODEL:
     DS_FUSE: 'ffff'
     ACT: 'silu'
     DWC_KERNEL: 5
+    AGG_RATIO: 1.
     ATTN_RATIO: 0.125
     ATTN_KERNEL: 'elu1'
     ATTN_NORM: 'mrms'

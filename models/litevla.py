@@ -197,7 +197,7 @@ class BasicLayer(nn.Module):
         use_checkpoint (bool): whether to use checkpoint to reduce memory usage
     """
     def __init__(self, inp, oup, depth, ds_exp, ds_kernel, ds_fuse, act, dwc_kernel, 
-                 block_type, attn_ratio, attn_kernel, attn_norm, mlp_ratio, dp_rates,
+                 block_type, agg_ratio, attn_ratio, attn_kernel, attn_norm, mlp_ratio, dp_rates,
                  use_checkpoint=False, **kwargs):
         super().__init__()
         
@@ -209,7 +209,7 @@ class BasicLayer(nn.Module):
         assert block_type in block_types, f'block_type({block_type}) must be one of {block_types}'
         for i in range(depth):
             blocks.append(
-                GatedAggBlock(dim=oup, k=dwc_kernel, act=act, drop_path=dp_rates[i])
+                GatedAggBlock(dim=oup, k=dwc_kernel, act=act, drop_path=dp_rates[i], e=agg_ratio)
                 if block_type == 'GAB' else
                 ELABlock(
                     dim=oup, attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,  
@@ -281,6 +281,7 @@ class LiteVLA(nn.Module):
                        Default: 'ff--' -> [True, True, False, False]
         act (str): activation function
         dwc_kernel (int): depthwise convolution kernel size
+        agg_ratio (float): ratio to reduce channel of aggregation
         attn_ratio (float): ratio to reduce channel of linear attention
         attn_kernel (str): kernel function for linear attention
         attn_norm (str): normalization after linear attention
@@ -295,7 +296,7 @@ class LiteVLA(nn.Module):
     """
     def __init__(self, inp=3, num_classes=1000, dims=(48, 96, 192, 384), 
                  depths=(2, 2, 11, 3), block_types=('GAB', 'GAB', 'VLA', 'VLA'), 
-                 stem_kernel=5, ds_exp=4, ds_kernel=3, ds_fuse="ff--", act='silu', dwc_kernel=5,
+                 stem_kernel=5, ds_exp=4, ds_kernel=3, ds_fuse="ff--", act='silu', dwc_kernel=5, agg_ratio=0.5,
                  attn_ratio=1/8, attn_kernel='elu1', attn_norm='mrms', mlp_ratio=3, head_norm='mrms',
                  drop_path_rate=0., use_checkpoint=False, distillation=False,  # for training
                  backbone=False, out_indices=None, pretrained=None,  # for backbone
@@ -316,7 +317,7 @@ class LiteVLA(nn.Module):
         dpr_lst = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         self.layers = nn.ModuleList([BasicLayer(
             inp=dims[i], oup=dims[i+1], depth=depths[i], ds_exp=ds_exp, ds_kernel=ds_kernel, 
-            ds_fuse=ds_fuse[i], act=act, dwc_kernel=dwc_kernel, block_type=block_types[i], 
+            ds_fuse=ds_fuse[i], act=act, dwc_kernel=dwc_kernel, block_type=block_types[i], agg_ratio=agg_ratio,
             attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,
             mlp_ratio=mlp_ratio, dp_rates=dpr_lst[sum(depths[:i]):sum(depths[:i+1])], 
             use_checkpoint=use_checkpoint, 

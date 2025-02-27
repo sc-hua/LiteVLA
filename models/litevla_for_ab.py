@@ -181,7 +181,7 @@ class MBConv(nn.Module):
     
 
 class BasicLayer(nn.Module):
-    def __init__(self, inp, oup, depth, ds_exp, ds_kernel, ds_fuse, act, dwc_kernel, block_type, 
+    def __init__(self, inp, oup, depth, ds_exp, ds_kernel, ds_fuse, act, dwc_kernel, block_type, agg_ratio, 
                  attn_ratio, attn_kernel, attn_norm, mlp_ratio, dp_rates, use_checkpoint, **kwargs
                  ):
         super().__init__()
@@ -191,7 +191,7 @@ class BasicLayer(nn.Module):
         # blocks
         assert block_type in ['VLA', 'GAB'], f'block_type must be VLA or GAB, but got {block_type}'
         if block_type == 'GAB':
-            blocks += [GatedAggBlock(dim=oup, k=dwc_kernel, act=act, drop_path=dp_rates[i], **kwargs) for i in range(depth)]
+            blocks += [GatedAggBlock(dim=oup, k=dwc_kernel, act=act, drop_path=dp_rates[i], e=agg_ratio, **kwargs) for i in range(depth)]
         else:
             blocks += [ELABlock(
                 dim=oup, attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,
@@ -239,7 +239,7 @@ class Classifier(nn.Module):
 class LiteVLA_AB(nn.Module):
     def __init__(self, inp=3, num_classes=1000, dims=(48, 96, 192, 384), 
                  depths=(2, 2, 11, 3), block_types=('GAB', 'GAB', 'VLA', 'VLA'), 
-                 stem_kernel=5, ds_exp=4, ds_kernel=3, ds_fuse="ff--", act='silu', dwc_kernel=5,
+                 stem_kernel=5, ds_exp=4, ds_kernel=3, ds_fuse="ff--", act='silu', dwc_kernel=5, agg_ratio=0.5,
                  attn_ratio=1/8, attn_kernel='elu1', attn_norm='mrms', mlp_ratio=3, head_norm='mrms',
                  drop_path_rate=0.,
                  use_checkpoint=False, distillation=False,  # for training
@@ -259,7 +259,7 @@ class LiteVLA_AB(nn.Module):
         dpr_lst = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         self.layers = nn.ModuleList([BasicLayer(
             inp=dims[i], oup=dims[i+1], depth=depths[i], ds_exp=ds_exp, ds_kernel=ds_kernel, 
-            ds_fuse=ds_fuse[i], act=act, dwc_kernel=dwc_kernel, block_type=block_types[i], 
+            ds_fuse=ds_fuse[i], act=act, dwc_kernel=dwc_kernel, block_type=block_types[i], agg_ratio=agg_ratio,
             attn_ratio=attn_ratio, attn_kernel=attn_kernel, attn_norm=attn_norm,
             mlp_ratio=mlp_ratio, dp_rates=dpr_lst[sum(depths[:i]):sum(depths[:i+1])], 
             use_checkpoint=use_checkpoint, 
