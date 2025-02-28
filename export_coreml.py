@@ -7,7 +7,11 @@ try:
     import coremltools as ct
 except ModuleNotFoundError:
     print('coremltools is not installed.')
-    
+
+from models import build_model
+from analyze.my_args import Args
+from config import get_config
+from models import build_model
 
 versions = [
     (None, (224, 224)),
@@ -19,8 +23,25 @@ show_arch, show_table = False, False
 
 for out_idx, img_size in versions:
     print(f'out_idx: {out_idx}, img_size: {img_size}')
-    version = 'litevla_t'
-    model = create_model(version, out_indices=out_idx)
+    
+    # version = 'litevla_t'
+    # model = create_model(version, out_indices=out_idx)
+    
+    # for ela
+    cfg = 'configs/ablation/for_ela/litevla_n_all_la.yaml'
+    cfg = 'configs/ablation/for_ela/litevla_n_no_attn.yaml'
+    cfg = 'configs/ablation/for_ela/litevla_n_use_sa.yaml'
+    
+    # for gate
+    cfg = 'configs/ablation/for_gate/litevla_n_no_gate.yaml'
+    
+    # for rep
+    cfg = 'configs/ablation/for_rep/litevla_n_no_rep.yaml'
+    
+    
+    model = build_model(get_config(Args(cfg=cfg)))
+    version = cfg.replace('.yaml', '').split('/')[-1]
+    
     rep_model = reparameterize_model(model)
     
     _ = model(torch.rand(2, 3, *img_size))
