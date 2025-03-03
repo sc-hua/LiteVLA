@@ -1,8 +1,9 @@
 .DS_Store
 __pycache__
 
-downstream/segmentation/data
 dataset/imagenet
+downstream/detection/data
+downstream/segmentation/data
 
 analyze
 wandb
@@ -14,3 +15,4 @@ ckpt
 
 tmp*
 pymp*
+others

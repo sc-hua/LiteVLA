@@ -72,9 +72,9 @@ model = dict(
 optim_wrapper = dict(
     type='AmpOptimWrapper', 
     # TODO [HSC]: remove after check if this will impact performance
-    paramwise_cfg=dict(custom_keys={'norm': dict(decay_mult=0.)},
-        # norm_decay_mult=0.0  # TODO [HSC]: check if this will impact performance
-    ),
+    # paramwise_cfg=dict(custom_keys={'norm': dict(decay_mult=0.)},
+    #     # norm_decay_mult=0.0  # TODO [HSC]: check if this will impact performance
+    # ),
     # END
     optimizer=dict(
         _delete_=True,

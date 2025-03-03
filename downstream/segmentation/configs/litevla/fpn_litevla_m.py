@@ -9,7 +9,7 @@ model = dict(
         out_indices=(0, 1, 2, 3),
         pretrained="pretrained_ckpt/litevla_m.pth"  # TODO [HSC]: change to github release url later
     ),
-    neck=dict(in_channels=[64, 128, 256, 512]),  # channels of each stage
+    neck=dict(in_channels=[56, 112, 224, 448]),  # channels of each stage
     decode_head=dict(num_classes=150),
 )
 

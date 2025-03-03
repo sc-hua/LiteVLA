@@ -1,10 +1,10 @@
 MODEL:
   TYPE: litevla_for_ab
-  NAME: litevla_n_1gab_3mla
+  NAME: litevla_n_4gab0mla
   LITEVLA:
     DIMS: [48, 96, 192, 384]
     DEPTHS: [2, 2, 11, 3]
-    BLOCK_TYPES: ['GAB', 'VLA', 'VLA', 'VLA']
+    BLOCK_TYPES: ['GAB', 'GAB', 'GAB', 'GAB']   ### 2gab2mla -> 4gab0mla
     STEM_KERNEL: 5
     DS_EXP: 4
     DS_KERNEL: 3
