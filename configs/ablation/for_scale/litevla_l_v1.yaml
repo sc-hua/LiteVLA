@@ -1,8 +1,9 @@
 MODEL:
   TYPE: litevla
-  NAME: litevla_m
+  NAME: litevla_l_v1
+  DROP_PATH_RATE: 0.2
   LITEVLA:
-    DIMS: [56, 112, 224, 448]
+    DIMS: [64, 128, 256, 512]
     DEPTHS: [2, 2, 11, 3]
     BLOCK_TYPES: ['GAB', 'GAB', 'VLA', 'VLA']
     STEM_KERNEL: 5
@@ -20,6 +21,4 @@ MODEL:
 TRAIN:
   WARMUP_EPOCHS: 10
 
-# medium 
-# 224: 1.49ms / 512: 4.86ms (iPhone 14)
-# 224: x.xxms / 512: x.xxms (iPhone 14 pro)
+# large 

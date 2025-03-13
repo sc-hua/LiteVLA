@@ -1,9 +1,10 @@
 MODEL:
   TYPE: litevla
-  NAME: litevla_m
+  NAME: litevla_m_v1
+  DROP_PATH_RATE: 0.1
   LITEVLA:
     DIMS: [56, 112, 224, 448]
-    DEPTHS: [2, 2, 11, 3]
+    DEPTHS: [2, 2, 12, 2]
     BLOCK_TYPES: ['GAB', 'GAB', 'VLA', 'VLA']
     STEM_KERNEL: 5
     DS_EXP: 4
@@ -14,7 +15,7 @@ MODEL:
     ATTN_RATIO: 0.125
     ATTN_KERNEL: 'elu1'
     ATTN_NORM: 'mrms'
-    MLP_RATIO: 3
+    MLP_RATIO: 4
     HEAD_NORM: 'mrms'
 
 TRAIN:

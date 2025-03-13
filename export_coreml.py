@@ -41,11 +41,11 @@ for out_idx, img_size in versions:
     # model = create_model(version, out_indices=out_idx)
     # model_name = f'coreml_{version}'
     # version = 'iformer_l_faster'
-    version = 'iformer_l'
-    from others import get_model
-    # model = get_model(version, out_indices=[0,1,2,3])
-    model = get_model(version)
-    model_name = f'coreml_{version}'
+    # version = 'iformer_l'
+    # from others import get_model
+    # # model = get_model(version, out_indices=[0,1,2,3])
+    # model = get_model(version)
+    # model_name = f'coreml_{version}'
     
     
     """ load from config yaml """
@@ -55,6 +55,7 @@ for out_idx, img_size in versions:
     # # # cfg = 'configs/ablation/for_block/litevla_n_2gab2mla.yaml'   # final
     # cfg = 'configs/ablation/for_block/litevla_n_3gab1mla.yaml'
     # cfg = 'configs/ablation/for_block/litevla_n_4gab0mla.yaml'
+    # cfg = 'configs/ablation/for_block/litevla_n_use_ln.yaml'
     
     # # for ela
     # cfg = 'configs/ablation/for_ela/litevla_n_all_la.yaml'
@@ -62,16 +63,28 @@ for out_idx, img_size in versions:
     # cfg = 'configs/ablation/for_ela/litevla_n_attn_ratio_25.yaml'
     # cfg = 'configs/ablation/for_ela/litevla_n_no_attn.yaml'
     # cfg = 'configs/ablation/for_ela/litevla_n_use_sa.yaml'
+    # cfg = "configs/ablation/for_ela/litevla_n_effvit.yaml"
+    # cfg = "configs/ablation/for_ela/litevla_n_flatten.yaml"
+    # cfg = "configs/ablation/for_ela/litevla_n_vanilla.yaml"
     
     # # # for gate
     # cfg = 'configs/ablation/for_gate/litevla_n_no_gate.yaml'
+    # cfg = 'configs/ablation/for_gate/litevla_n_gate_act_silu.yaml'
+    
+    # # for norm
+    # cfg = 'configs/ablation/for_norm/litevla_n_no_attn_norm.yaml'
+    # cfg = 'configs/ablation/for_norm/litevla_n_rms_attn_norm.yaml'
     
     # # # for rep
     # # cfg = 'configs/ablation/for_rep/litevla_n_no_rep.yaml'
-    # model = build_model(get_config(Args(cfg=cfg)))
-    # version = cfg.replace('.yaml', '').split('/')[-1]
-    # version = 'ab_' + version
-    # model_name = f'coreml_{version}'
+    
+    # # for scale
+    cfg = "configs/ablation/for_scale/litevla_m_v1.yaml"
+    
+    model = build_model(get_config(Args(cfg=cfg)))
+    version = cfg.replace('.yaml', '').split('/')[-1]
+    version = 'ab_' + version
+    model_name = f'coreml_{version}'
     
     
     """ load from timm """
@@ -86,7 +99,7 @@ for out_idx, img_size in versions:
     #     # intermediates_only=(out_idx is not None),
     #     img_size=img_size[0],
     # )
-    # model = replace_forward(model, replace_lst=['drop_path', 'dp'], replact_to=nn.Identity)
+    model = replace_forward(model, replace_lst=['drop_path', 'dp'], replact_to=nn.Identity)
     # model_name = f'timm_{name}'
     """ end """
     

@@ -354,14 +354,36 @@ class LiteVLA(nn.Module):
             return x
         return self.head(x)
                     
-    def load_pretrained(self, ckpt=None, key="model"):
+    def load_pretrained(self, ckpt=None, key="model", filter_keys=None, map_keys=None):
         if ckpt is None:
             return
         try:
             _ckpt = torch.load(open(ckpt, "rb"), map_location=torch.device("cpu"))
+            
+            if map_keys is not None:
+                assert isinstance(map_keys, dict)
+                _new_ckpt = {}
+                for k, v in _ckpt[key].items():
+                    new_k = k
+                    for prefix, map_to in map_keys.items():
+                        if k.startswith(prefix):
+                            new_k = k.replace(prefix, map_to)
+                            # print(f"{k} -> {new_k}")
+                    if filter_keys is not None \
+                        and isinstance(filter_keys, (list, tuple)) \
+                        and not any(f in k for f in filter_keys):
+                        continue
+                    _new_ckpt[new_k] = v
+                _ckpt[key] = _new_ckpt
+            
+            # if filter_keys is not None:
+            #     assert isinstance(filter_keys, (list, tuple))
+            #     for k, v in _ckpt[key].items():
+            #         if not any([f in k for f in filter_keys]):
+            #             _ckpt[key].pop(k)
+                        
             print(f"(LiteVLA): Loading ckpt from {ckpt} ...")
             incompatibleKeys = self.load_state_dict(_ckpt[key], strict=False)
             print(f"(LiteVLA): incompatibleKeys: {incompatibleKeys}")
         except Exception as e:
             print(f"(LiteVLA): Failed loading checkpoint form {ckpt}: {e}")
-
