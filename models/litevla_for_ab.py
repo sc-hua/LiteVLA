@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint as cp
 from torch.nn.modules.batchnorm import _BatchNorm
 from timm.layers import make_divisible, DropPath
@@ -141,21 +142,172 @@ class MLP(nn.Module):
         return self.fc2(self.act(self.fc1(x)))
 
 
+class FocusedLinearAttention(nn.Module):
+    def __init__(self, dim, attn_ratio, attn_norm, dwc_kernel, **kwargs):
+        super().__init__()
+        
+        d = int(dim * attn_ratio)
+        self.dim = dim
+        self.qkv = ConvNorm(dim, d * 3)
+        self.kernel = nn.ReLU()
+        self.dwc = RepConv(d, d, k=dwc_kernel, g=d)
+        self.eps = 1e-5
+        self.attn_norm = get_norm(attn_norm, d, w_init=0.)
+        self.proj = ConvNorm(d, dim, bn_w_init=0.)
+
+    def _attn(self, q, k, v):
+        kT = k.transpose(-1,-2)
+        scale = kT.shape[-2] ** -0.5
+        if use_linear(q, v):
+            z = kT.mean(-2, True) @ q + self.eps
+            v, kT = v * scale, kT * scale
+            attn = (v @ kT) @ q
+        else:
+            kq = kT @ q  # B, Nvk, Nq
+            z = kq.mean(-2, True) + self.eps
+            v, kq = v * scale, kq * scale
+            attn = v @ kq
+        return attn / z
+    
+    def forward(self, x):
+        B, _ ,H, W = x.shape
+        q, k, v = self.qkv(x).flatten(2).chunk(3, dim=1)
+        q = self.kernel(q) + self.eps
+        k = self.kernel(k) + self.eps
+        q = F.normalize(q.square())
+        k = F.normalize(k.square())
+        
+        attn = self.attn_norm(self._attn(q,k,v)).reshape(B, -1, H, W)
+        x = attn + self.dwc(v.reshape(B, -1, H, W))
+        return self.proj(x)
+    
+
+class EfficientViT(nn.Module):
+    def __init__(self, dim, attn_ratio, attn_norm, **kwargs):
+        super().__init__()
+        
+        d = int(dim * attn_ratio)
+        attn_dim = 3 * d
+        scales=(5,)
+        
+        self.dim = dim
+        self.qkv = ConvNorm(dim, attn_dim)
+        self.aggreg = nn.ModuleList([
+            nn.Sequential(
+                ConvNorm(attn_dim, attn_dim, k=k, p=(k // 2), g=attn_dim),
+                ConvNorm(attn_dim, attn_dim, k=1, g=attn_dim),
+            ) for k in scales
+        ])
+        self.kernel = nn.ReLU()
+        self.eps = 1e-5
+        
+        inner_dim = d * (1 + len(scales))
+        self.attn_norm = get_norm(attn_norm, inner_dim, w_init=0.)
+        self.proj = ConvNorm(inner_dim, dim, bn_w_init=0.)
+    
+    def _attn(self, q, k, v):
+        kT = k.transpose(-1,-2)
+        scale = kT.shape[-2] ** -0.5
+        if use_linear(q, v):
+            z = kT.mean(-2, True) @ q + self.eps
+            v, kT = v * scale, kT * scale
+            attn = (v @ kT) @ q
+        else:
+            kq = kT @ q  # B, Nvk, Nq
+            z = kq.mean(-2, True) + self.eps
+            v, kq = v * scale, kq * scale
+            attn = v @ kq
+        return attn / z
+
+    def forward(self, x):
+        B, _, H, W = x.shape
+
+        # generate multi-scale q, k, v
+        qkv = self.qkv(x)
+        multi_scale_qkv = [qkv]
+        for op in self.aggreg:
+            multi_scale_qkv.append(op(qkv))
+        qkv = torch.cat(multi_scale_qkv, dim=1)  # B, C', H, W
+        q, k, v = qkv.flatten(2).chunk(3, dim=1)  # B, D, N
+
+        # lightweight global attention
+        q = self.kernel(q) + self.eps
+        k = self.kernel(k) + self.eps
+        x = self.attn_norm(self._attn(q, k, v)) + v
+        return self.proj(x.reshape(B, -1, H, W))
+        
+
+class VanillaLinearAttn(nn.Module):
+    def __init__(self, dim, attn_ratio, attn_norm, **kwargs):
+        super().__init__()
+        
+        d = int(dim * attn_ratio)
+        
+        self.dim = dim
+        self.qkv = ConvNorm(dim, 3 * d)
+        self.kernel = get_act('elu1')
+        self.eps = 1e-5
+        
+        self.attn_norm = get_norm(attn_norm, d, w_init=0.)
+        self.proj = ConvNorm(d, dim, bn_w_init=0.)
+    
+    def _attn(self, q, k, v):
+        kT = k.transpose(-1,-2)
+        scale = kT.shape[-2] ** -0.5
+        if use_linear(q, v):
+            z = kT.mean(-2, True) @ q + self.eps
+            v, kT = v * scale, kT * scale
+            attn = (v @ kT) @ q
+        else:
+            kq = kT @ q  # B, Nvk, Nq
+            z = kq.mean(-2, True) + self.eps
+            v, kq = v * scale, kq * scale
+            attn = v @ kq
+        return attn / z
+
+    def forward(self, x):
+        B, _, H, W = x.shape
+        q, k, v = self.qkv(x).flatten(2).chunk(3, dim=1)  # B, D, N
+        q, k = self.kernel(q), self.kernel(k)
+        x = self.attn_norm(self._attn(q, k, v)) + v
+        return self.proj(x.reshape(B, -1, H, W))
+        
+        
 class ELABlock(nn.Module):
     def __init__(self, dim, attn_ratio, attn_kernel, attn_norm, 
                  dwc_kernel, mlp_ratio, act, drop_path, **kwargs):
         super().__init__()
+        # ablation: use residual scale or not
+        # ablation: use LayerNorm or not
         no_rs = kwargs.get('no_rs', False)
+        use_ln = kwargs.get('use_ln', False)
+        norm = 'ln2d' if use_ln else 'identity'
+        
+        self.norm1 = get_norm(norm, dim)
         self.ela = ELA(dim, attn_ratio, attn_kernel, attn_norm, dwc_kernel, **kwargs)
         self.dp1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.rs1 = Scale(dim) if not no_rs else nn.Identity()
+        
+        # ablation: which linear attention to use
+        linear_type = kwargs.get('linear_type', 'ela')
+        if linear_type != 'ela':
+            if linear_type == 'flatten':
+                self.ela = FocusedLinearAttention(dim, attn_ratio, attn_norm, dwc_kernel)
+            elif linear_type == 'effvit':
+                self.ela = EfficientViT(dim, attn_ratio, attn_norm)
+            elif linear_type == 'vanilla':
+                self.ela = VanillaLinearAttn(dim, attn_ratio, attn_norm)
+            else:
+                raise NotImplementedError
+        
+        self.norm2 = get_norm(norm, dim)
         self.mlp = MLP(dim, mlp_ratio, act)
         self.dp2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.rs2 = Scale(dim) if not no_rs else nn.Identity()
 
     def forward(self, x):
-        x = self.rs1(x) + self.dp1(self.ela(x))
-        return self.rs2(x) + self.dp2(self.mlp(x))
+        x = self.rs1(x) + self.dp1(self.ela(self.norm1(x)))
+        return self.rs2(x) + self.dp2(self.mlp(self.norm2(x)))
 
 
 class MBConv(nn.Module):
@@ -249,6 +401,11 @@ class LiteVLA_AB(nn.Module):
         if isinstance(dims, int):
             dims = [dims * 2 ** i for i in range(len(depths))]
         ds_fuse = [f == 'f' for f in ds_fuse]
+    
+        ## ablation: use LayerNorm or not
+        if kwargs.get('use_ln'):
+            attn_norm = 'identity'
+            head_norm = 'ln'
         
         # Stem
         dims = [dims[0] // 2, *dims]
@@ -338,14 +495,14 @@ def get_ablation_args(args):
             
             
         ### efficient linear attn
-        if arg == 'no_attn_norm':
-            updates['attn_norm'] = 'identity'
-            
         if arg == 'no_attn':
             updates['no_attn'] = True
 
         if arg == 'use_sa':
             updates['use_sa'] = True
+        
+        if arg == 'linear_type':
+            updates['linear_type'] = lst[1]
         
         
         ### input-dependent gating
@@ -354,6 +511,14 @@ def get_ablation_args(args):
             
         if arg == 'no_gate':
             updates['no_gate'] = True
+        
+        
+        ### norm
+        if arg == 'no_attn_norm':
+            updates['attn_norm'] = 'identity'
+        
+        if arg == 'use_ln':
+            updates['use_ln'] = True
             
             
         ### repconv

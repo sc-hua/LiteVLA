@@ -10,7 +10,7 @@ model = dict(
         out_indices=(0, 1, 2, 3),
         pretrained="pretrained_ckpt/litevla_m.pth"  # TODO [HSC]: change to github release url later
     ),
-    neck=dict(in_channels=[48, 96, 192, 384]),
+    neck=dict(in_channels=[56, 112, 224, 448]),
 )
 
 train_dataloader = dict(batch_size=4)  # as gpus=4
@@ -32,5 +32,5 @@ visualizer = dict(vis_backends=vis_backends)
 # train
 # cd dectection/
 # export CUDA_VISIBLE_DEVICES=5,4,3,2,1,0
-# bash ./tools/dist_train.sh configs/litevla/mask_rcnn_litevla_m.py 4 --work-dir output/litevla_m
+# bash ./tools/dist_train.sh configs/litevla/mask-rcnn_litevla_m.py 4 --work-dir output/litevla_m
 

@@ -32,5 +32,5 @@ visualizer = dict(vis_backends=vis_backends)
 # train
 # cd dectection/
 # export CUDA_VISIBLE_DEVICES=5,4,3,2,1,0
-# bash ./tools/dist_train.sh configs/litevla/mask_rcnn_litevla_n.py 4 --work-dir output/litevla_n
+# bash ./tools/dist_train.sh configs/litevla/mask-rcnn_litevla_n.py 4 --work-dir output/litevla_n
 

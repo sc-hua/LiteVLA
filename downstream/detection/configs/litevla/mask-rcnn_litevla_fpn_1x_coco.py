@@ -13,6 +13,13 @@ param_scheduler = [
         by_epoch=False, 
         begin=0,
         end=1000),  # 500 -> 1000
+    dict(
+        type='MultiStepLR',
+        begin=0,
+        end=12,
+        by_epoch=True,
+        milestones=[8, 11],
+        gamma=0.1)
 ]
 
 # optimizer

@@ -102,13 +102,11 @@ def get_litevla_version_args(version):
     if version in ['normal', 'n']:
         version_args = dict(dims=(48, 96, 192, 384), ds_fuse="ff--")
     if version in ['medium', 'm']:
-        # version_args = dict(dims=(56, 112, 224, 448), depths=(2, 2, 11, 3), ds_fuse="f---")
-        version_args = dict(dims=(56, 112, 224, 448), depths=(2, 2, 10, 4), 
-                            ds_fuse="f---", drop_path_rate=0.1)
+        version_args = dict(dims=(56, 112, 224, 448), depths=(2, 2, 11, 3), ds_fuse="f---")
+        # version_args = dict(dims=(56, 112, 224, 448), depths=(2, 2, 10, 4), ds_fuse="f---", drop_path_rate=0.1)
     if version in ['large', 'l']:
         # version_args = dict(dims=(64, 128, 256, 512), ds_fuse="f---")
-        version_args = dict(dims=(64, 128, 256, 512), 
-                            ds_fuse="f---", drop_path_rate=0.2)
+        version_args = dict(dims=(64, 128, 256, 512), ds_fuse="f---", drop_path_rate=0.2)
     if version_args is None:
         raise NotImplementedError(f"LiteVLA: version({version}) not implemented")
     return version_args

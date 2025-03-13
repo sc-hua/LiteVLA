@@ -56,6 +56,10 @@ def get_norm(name, dim, **kwargs):
         # can be implemented by setting group=1 in GroupNorm
         norm = GroupNorm1(dim, **kwargs)
         
+    # RMSNorm
+    if name == 'rms':
+        norm = RMSNorm(dim, **kwargs)
+        
     # Ours
     if name == 'mrms':
         norm = ModifiedRMSNorm(dim, w_init=w_init, **kwargs)
@@ -115,3 +119,27 @@ class ModifiedRMSNorm(nn.Module):
             return normlized_x * self.weight.view(*shape)
         else:
             return normlized_x
+
+class RMSNorm(nn.Module):
+    def __init__(self, dim, eps=1e-5):
+        """ modified from LlamaRMSNorm """
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(dim))
+        self.eps = eps
+    
+    def _norm(self, x):
+        return x * torch.rsqrt(x.pow(2).mean(1, True) + self.eps)
+
+    def forward(self, x):
+        if x.ndim == 4:
+            weight = self.weight.unsqueeze(-1).unsqueeze(-1)
+        elif x.ndim == 3:
+            weight = self.weight.unsqueeze(-1)
+        elif x.ndim == 2:
+            weight = self.weight
+        else:
+            raise NotImplementedError
+        return weight * self._norm(x.float()).to(x.dtype)
+
+    def extra_repr(self):
+        return f"{tuple(self.weight.shape)}, eps={self.eps}"
