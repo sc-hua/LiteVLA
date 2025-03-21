@@ -79,7 +79,8 @@ for out_idx, img_size in versions:
     # # cfg = 'configs/ablation/for_rep/litevla_n_no_rep.yaml'
     
     # # for scale
-    cfg = "configs/ablation/for_scale/litevla_m_v1.yaml"
+    # cfg = "configs/ablation/for_scale/litevla_m_v1.yaml"
+    cfg = "configs/ablation/for_scale/litevla_m_v2.yaml"
     
     model = build_model(get_config(Args(cfg=cfg)))
     version = cfg.replace('.yaml', '').split('/')[-1]
