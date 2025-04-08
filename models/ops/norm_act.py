@@ -28,10 +28,10 @@ class ELU_1(nn.Module):
 
 
 def get_norm(name, dim, **kwargs):
-    name = name.lower()
-    if name in ['id', 'identity']:
+    if name is None or name.lower() in ['id', 'identity', 'none']:
         return nn.Identity()
     
+    name = name.lower()
     w_init = kwargs.pop('w_init', 1.)  # initial value for weight
     b_init = kwargs.pop('b_init', 0.)  # initial value for bias
     norm = None
