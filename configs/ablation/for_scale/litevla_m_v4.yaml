@@ -1,10 +1,10 @@
 MODEL:
   TYPE: litevla
-  NAME: litevla_m_v3
+  NAME: litevla_m_v4
   DROP_PATH_RATE: 0.0
   LITEVLA:
     DIMS: [56, 112, 224, 448]
-    DEPTHS: [2, 3, 13, 4]   # 2,2,11,3 -> 2,3,13,4
+    DEPTHS: [2, 2, 11, 3]
     BLOCK_TYPES: ['GAB', 'GAB', 'VLA', 'VLA']
     STEM_KERNEL: 5
     DS_EXP: 4
@@ -12,7 +12,7 @@ MODEL:
     DS_FUSE: 'f---'
     ACT: 'silu'
     DWC_KERNEL: 5
-    ATTN_RATIO: 0.125
+    ATTN_RATIO: 0.16667   # 0.125 -> 0.16667
     ATTN_KERNEL: 'elu1'
     ATTN_NORM: 'mrms'
     MLP_RATIO: 3

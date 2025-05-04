@@ -4,7 +4,7 @@ MODEL:
   DROP_PATH_RATE: 0.0
   LITEVLA:
     DIMS: [56, 112, 224, 448]
-    DEPTHS: [2, 2, 15, 3]
+    DEPTHS: [2, 2, 15, 3]   # 2,2,11,3 -> 2,2,15,3
     BLOCK_TYPES: ['GAB', 'GAB', 'VLA', 'VLA']
     STEM_KERNEL: 5
     DS_EXP: 4

@@ -15,7 +15,7 @@ MODEL:
     ATTN_RATIO: 0.125
     ATTN_KERNEL: 'elu1'
     ATTN_NORM: 'mrms'
-    MLP_RATIO: 4
+    MLP_RATIO: 4      # mlp_ratio 3 -> 4
     HEAD_NORM: 'mrms'
 
 TRAIN:

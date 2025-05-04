@@ -1,11 +1,11 @@
 MODEL:
   TYPE: litevla
-  NAME: litevla_m_v3
+  NAME: litevla_m_v5
   DROP_PATH_RATE: 0.0
   LITEVLA:
     DIMS: [56, 112, 224, 448]
-    DEPTHS: [2, 3, 13, 4]   # 2,2,11,3 -> 2,3,13,4
-    BLOCK_TYPES: ['GAB', 'GAB', 'VLA', 'VLA']
+    DEPTHS: [2, 2, 11, 3]
+    BLOCK_TYPES: ['GAB', 'VLA', 'VLA', 'VLA']  # g2m2 -> g1m3
     STEM_KERNEL: 5
     DS_EXP: 4
     DS_KERNEL: 3
