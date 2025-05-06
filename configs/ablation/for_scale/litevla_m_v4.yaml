@@ -12,7 +12,7 @@ MODEL:
     DS_FUSE: 'f---'
     ACT: 'silu'
     DWC_KERNEL: 5
-    ATTN_RATIO: 0.16667   # 0.125 -> 0.16667
+    ATTN_RATIO: 0.25   # 0.125 -> 0.25
     ATTN_KERNEL: 'elu1'
     ATTN_NORM: 'mrms'
     MLP_RATIO: 3

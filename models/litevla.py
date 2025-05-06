@@ -334,7 +334,7 @@ class LiteVLA(nn.Module):
         if self.backbone or self.out_indices is not None:
             delattr(self, 'head')
         if self.out_indices is not None:
-            self = nn.SyncBatchNorm.convert_sync_batchnorm(self)  # for batchnorm
+            self = nn.SyncBatchNorm.convert_sync_batchnorm(self)  # for downstream batchnorm
             assert isinstance(out_indices, (tuple, list)), 'out_indices should be tuple or list'
             assert max(self.out_indices) < len(self.layers), 'out_indices should < len(layers)'
             assert len(self.out_indices) > 0, 'len(out_indices) sould > 0'

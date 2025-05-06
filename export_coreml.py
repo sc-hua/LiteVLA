@@ -50,15 +50,13 @@ for out_idx, img_size in versions:
     
     """ load from config yaml """
     # # for block
-    # # # cfg = 'configs/ablation/for_block/litevla_n_0gab4mla.yaml'  # all la
+    # cfg = 'configs/ablation/for_block/litevla_n_0gab4mla.yaml'
     # cfg = 'configs/ablation/for_block/litevla_n_1gab3mla.yaml'
     # # # cfg = 'configs/ablation/for_block/litevla_n_2gab2mla.yaml'   # final
     # cfg = 'configs/ablation/for_block/litevla_n_3gab1mla.yaml'
     # cfg = 'configs/ablation/for_block/litevla_n_4gab0mla.yaml'
-    # cfg = 'configs/ablation/for_block/litevla_n_use_ln.yaml'
     
     # # for ela
-    # cfg = 'configs/ablation/for_ela/litevla_n_all_la.yaml'
     # cfg = 'configs/ablation/for_ela/litevla_n_attn_ratio_5.yaml'
     # cfg = 'configs/ablation/for_ela/litevla_n_attn_ratio_25.yaml'
     # cfg = 'configs/ablation/for_ela/litevla_n_no_attn.yaml'
@@ -74,6 +72,8 @@ for out_idx, img_size in versions:
     # # for norm
     # cfg = 'configs/ablation/for_norm/litevla_n_no_attn_norm.yaml'
     # cfg = 'configs/ablation/for_norm/litevla_n_rms_attn_norm.yaml'
+    # cfg = 'configs/ablation/for_block/litevla_n_use_ln.yaml'
+    
     
     # # # for rep
     # # cfg = 'configs/ablation/for_rep/litevla_n_no_rep.yaml'
