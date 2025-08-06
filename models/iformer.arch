@@ -1,0 +1,612 @@
+•	Downsample[0]: 两次 s2，使分辨率从 H×W → H/4×W/4，通道到 48
+  •	Conv(3→24, k5, s2) + BN + GELU
+  •	EdgeResidual: Conv(24→96, k5, s2) → GELU → PW(96→48)
+Stage 0（C=48，分辨率 /4）
+	•	2× ConvBlock
+    DWConv(k7, groups=48) → PW(48→192) → GELU → PW(192→48)
+
+•	Downsample[1]: Conv(48→96, k3, s2) → 96，分辨率 /8
+Stage 1（C=96，分辨率 /8）
+	•	2× ConvBlock
+    DWConv(k7, groups=96) → PW(96→384) → GELU → PW(384→96)
+
+•	Downsample[2]: Conv(96→192, k3, s2) → 192，分辨率 /16
+Stage 2（C=192，分辨率 /16）
+  •	9× ConvBlock
+	  DWConv(k7, g=192) → PW(192→768) → GELU → PW(768→192)
+  •	4x [RepCPE → SHMA → FFN2d] d-192
+    RepCPE：DWConv(k3, g=192)
+    SHMA：q/k: PW(192→96)，v_gate: PW(192→384), proj: PW(192→192)
+    FFN2d：PW(192→576) → GELU → PW(576→192)
+  •	1× ConvBlock
+	  DWConv(k7, g=192) → PW(192→768) → GELU → PW(768→192)
+
+•	Downsample[3]: Conv(192→384, k3, s2) → 384，分辨率 /32
+Stage 3（C=384，分辨率 /32）
+	•	2x [RepCPE → SHMA → FFN2d] d-384
+	  RepCPE：DWConv(k3, g=384)
+	  SHMA：q/k: PW(384→96)，v_gate: PW(384→768)，proj: PW(384→384)
+	  FFN2d：PW(384→1152) → GELU → PW(1152→384)
+
+Classifier
+	•	BN1d(384) → Linear(384 → 1000)
+
+
+iFormer(
+  (downsample_layers): ModuleList(
+    (0): Sequential(
+      (0): Conv2d_BN(
+        (c): Conv2d(3, 16, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2), bias=False)
+        (bn): BatchNorm2d(16, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      )
+      (1): GELU(approximate='none')
+      (2): EdgeResidual(
+        (conv_exp_bn1): Conv2d_BN(
+          (c): Conv2d(16, 64, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2), bias=False)
+          (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        )
+        (act): GELU(approximate='none')
+        (conv_pwl_bn2): Conv2d_BN(
+          (c): Conv2d(64, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (bn): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        )
+      )
+    )
+    (1): Sequential(
+      (0): Conv2d_BN(
+        (c): Conv2d(32, 64, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      )
+    )
+    (2): Sequential(
+      (0): Conv2d_BN(
+        (c): Conv2d(64, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      )
+    )
+    (3): Sequential(
+      (0): Conv2d_BN(
+        (c): Conv2d(128, 256, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      )
+    )
+  )
+  (stages): ModuleList(
+    (0): Sequential(
+      (0): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(32, 32, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=32, bias=False)
+                (bn): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(32, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(96, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(96, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (1): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(32, 32, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=32, bias=False)
+                (bn): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(32, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(96, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(96, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+    )
+    (1): Sequential(
+      (0): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(64, 64, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=64, bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(64, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(192, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (1): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(64, 64, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=64, bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(64, 192, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(192, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(192, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+    )
+    (2): Sequential(
+      (0): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(128, 128, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=128, bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(128, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (1): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(128, 128, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=128, bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(128, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (2): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(128, 128, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=128, bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(128, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (3): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(128, 128, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=128, bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(128, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (4): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(128, 128, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=128, bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(128, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (5): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(128, 128, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=128, bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(128, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (6): BasicBlock(
+        (block): RepCPE(
+          (cpe): Residual(
+            (m): Conv2d_BN(
+              (c): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=128, bias=False)
+              (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (7): BasicBlock(
+        (block): SHMABlock(
+          (token_channel_mixer): Residual(
+            (m): SHMA(
+              (q): Conv2d_BN(
+                (c): Conv2d(128, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (k): Conv2d_BN(
+                (c): Conv2d(128, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (gate_act): Sigmoid()
+              (attn_drop): Dropout(p=0.0, inplace=False)
+              (proj): Conv2d_BN(
+                (c): Conv2d(128, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (v_gate): Conv2d_BN(
+                (c): Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (8): BasicBlock(
+        (block): FFN2d(
+          (channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): GELU(approximate='none')
+              (2): Conv2d_BN(
+                (c): Conv2d(256, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (9): BasicBlock(
+        (block): RepCPE(
+          (cpe): Residual(
+            (m): Conv2d_BN(
+              (c): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=128, bias=False)
+              (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (10): BasicBlock(
+        (block): SHMABlock(
+          (token_channel_mixer): Residual(
+            (m): SHMA(
+              (q): Conv2d_BN(
+                (c): Conv2d(128, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (k): Conv2d_BN(
+                (c): Conv2d(128, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (gate_act): Sigmoid()
+              (attn_drop): Dropout(p=0.0, inplace=False)
+              (proj): Conv2d_BN(
+                (c): Conv2d(128, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (v_gate): Conv2d_BN(
+                (c): Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (11): BasicBlock(
+        (block): FFN2d(
+          (channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): GELU(approximate='none')
+              (2): Conv2d_BN(
+                (c): Conv2d(256, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (12): BasicBlock(
+        (block): RepCPE(
+          (cpe): Residual(
+            (m): Conv2d_BN(
+              (c): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=128, bias=False)
+              (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (13): BasicBlock(
+        (block): SHMABlock(
+          (token_channel_mixer): Residual(
+            (m): SHMA(
+              (q): Conv2d_BN(
+                (c): Conv2d(128, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (k): Conv2d_BN(
+                (c): Conv2d(128, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (gate_act): Sigmoid()
+              (attn_drop): Dropout(p=0.0, inplace=False)
+              (proj): Conv2d_BN(
+                (c): Conv2d(128, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (v_gate): Conv2d_BN(
+                (c): Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (14): BasicBlock(
+        (block): FFN2d(
+          (channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): GELU(approximate='none')
+              (2): Conv2d_BN(
+                (c): Conv2d(256, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (15): BasicBlock(
+        (block): ConvBlock(
+          (token_channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(128, 128, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3), groups=128, bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): Conv2d_BN(
+                (c): Conv2d(128, 384, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(384, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (2): GELU(approximate='none')
+              (3): Conv2d_BN(
+                (c): Conv2d(384, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+    )
+    (3): Sequential(
+      (0): BasicBlock(
+        (block): RepCPE(
+          (cpe): Residual(
+            (m): Conv2d_BN(
+              (c): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=256, bias=False)
+              (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (1): BasicBlock(
+        (block): SHMABlock(
+          (token_channel_mixer): Residual(
+            (m): SHMA(
+              (q): Conv2d_BN(
+                (c): Conv2d(256, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (k): Conv2d_BN(
+                (c): Conv2d(256, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (gate_act): Sigmoid()
+              (attn_drop): Dropout(p=0.0, inplace=False)
+              (proj): Conv2d_BN(
+                (c): Conv2d(256, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (v_gate): Conv2d_BN(
+                (c): Conv2d(256, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (2): BasicBlock(
+        (block): FFN2d(
+          (channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(256, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): GELU(approximate='none')
+              (2): Conv2d_BN(
+                (c): Conv2d(512, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (3): BasicBlock(
+        (block): RepCPE(
+          (cpe): Residual(
+            (m): Conv2d_BN(
+              (c): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), groups=256, bias=False)
+              (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (4): BasicBlock(
+        (block): SHMABlock(
+          (token_channel_mixer): Residual(
+            (m): SHMA(
+              (q): Conv2d_BN(
+                (c): Conv2d(256, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (k): Conv2d_BN(
+                (c): Conv2d(256, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (gate_act): Sigmoid()
+              (attn_drop): Dropout(p=0.0, inplace=False)
+              (proj): Conv2d_BN(
+                (c): Conv2d(256, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (v_gate): Conv2d_BN(
+                (c): Conv2d(256, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+      (5): BasicBlock(
+        (block): FFN2d(
+          (channel_mixer): Residual(
+            (m): Sequential(
+              (0): Conv2d_BN(
+                (c): Conv2d(256, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+              (1): GELU(approximate='none')
+              (2): Conv2d_BN(
+                (c): Conv2d(512, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+                (bn): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+              )
+            )
+            (drop_path): Identity()
+          )
+        )
+      )
+    )
+  )
+  (classifier): Classfier(
+    (classifier): BN_Linear(
+      (bn): BatchNorm1d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (l): Linear(in_features=256, out_features=1000, bias=True)
+    )
+  )
+)
