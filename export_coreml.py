@@ -39,12 +39,16 @@ for out_idx, img_size in versions:
     """" load from version """
     # version = 'litevla_m'
     # model = create_model(version, out_indices=out_idx)
-    # model_name = f'coreml_{version}'
+    
     # version = 'iformer_l_faster'
     # version = 'iformer_l'
     # from others import get_model
-    # # model = get_model(version, out_indices=[0,1,2,3])
+    # model = get_model(version, out_indices=[0,1,2,3])
     # model = get_model(version)
+    
+    # from others.mambaout_conv_bn import mambaout_femto
+    # model = mambaout_femto()
+    # version = 'mambaout_femto'
     # model_name = f'coreml_{version}'
     
     
@@ -80,27 +84,33 @@ for out_idx, img_size in versions:
     
     # # for scale
     # cfg = "configs/ablation/for_scale/litevla_m_v1.yaml"
-    cfg = "configs/ablation/for_scale/litevla_m_v2.yaml"
+    # cfg = "configs/ablation/for_scale/litevla_m_v2.yaml"
+    # cfg = "configs/ablation/for_scale/litevla_m_v3.yaml"
+    # cfg = "configs/ablation/for_scale/litevla_m_v4.yaml"
+    # cfg = "configs/ablation/for_scale/litevla_m_v5.yaml"
     
+    # aha
+    cfg = 'configs/aha/aha_m.yaml'
     model = build_model(get_config(Args(cfg=cfg)))
     version = cfg.replace('.yaml', '').split('/')[-1]
-    version = 'ab_' + version
+    # version = 'ab_' + version
     model_name = f'coreml_{version}'
     
     
-    """ load from timm """
+    # """ load from timm """
     # import timm
-    # import others
+    # # import others
     # # img_size = (300, 300)
-    # name = "swin_tiny_patch4_window7_224"
+    # # name = "swin_tiny_patch4_window7_224"
+    # name = "mambaout_kobe"
     # model = timm.create_model(
     #     name, 
     #     features_only=(out_idx is not None), 
     #     # fork_feat=(out_idx is not None),
     #     # intermediates_only=(out_idx is not None),
-    #     img_size=img_size[0],
+    #     # img_size=img_size[0],
     # )
-    model = replace_forward(model, replace_lst=['drop_path', 'dp'], replact_to=nn.Identity)
+    # model = replace_forward(model, replace_lst=['drop_path', 'dp'], replact_to=nn.Identity)
     # model_name = f'timm_{name}'
     """ end """
     

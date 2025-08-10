@@ -1,0 +1,8 @@
+MODEL:
+  TYPE: aha
+  NAME: aha_m
+
+TRAIN:
+  WARMUP_EPOCHS: 10
+
+# medium 

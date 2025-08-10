@@ -7,13 +7,13 @@ from models.lib import GLOBAL_EPS, fuse_conv_bn, get_id_tensor
 
 
 class Scale(nn.Module):
-    r""" Learnable scale for specified dimension(s)
+    """Learnable scale for specified dimension(s).
 
     Args:
-        dim (int): number of channels
-        init_value (float): initial value of scale
-        shape (tuple): shape of scale vector when element-wise multiply
-            Default: None, which means shape = (1, dim, 1, 1), suitable for (B, C, H, W)
+        dim (int): Number of channels.
+        init_value (float): Initial value of scale.
+        shape (tuple or None): Shape of scale vector for element-wise multiplication.
+            Default None is (1, dim, 1, 1), suitable for (B, C, H, W).
     """
     def __init__(self, dim, init_value=1., shape=None):
         super().__init__()
@@ -25,16 +25,23 @@ class Scale(nn.Module):
 
 
 class ConvNorm(nn.Sequential):
-    r""" Convolution with normalization
+    """ Convolution followed by normalization.
 
     Args:
-        inp, oup (int): number of input / output channels
-        k, s, p, d, g (int): kernel size, stride, padding, dilation, groups
-        bn_w_init (float): weight initialization, Default: 1.
-            Suggestion: use 0. when this module directly add residual, kinda like LayerScaleInit=0. ?
+        inp (int): input channels
+        oup (int): output channels
+        k (int or tuple): kernel size
+        s (int or tuple): stride
+        p (int or None): padding (auto if None)
+        d (int): dilation
+        g (int): groups
+        bn_w_init (float): batch norm weight init (default 1.)
+            - Suggestion: use small value when this module directly add residual
+            - kinda like `layer_scale` in some models
     """
-    def __init__(self, inp, oup, k=1, s=1, p=0, d=1, g=1, bn_w_init=1.):
+    def __init__(self, inp, oup, k=1, s=1, p=None, d=1, g=1, bn_w_init=1.):
         super().__init__()
+        p = (k // 2) if p is None else p  # auto padding
         self.conv_args = (inp, oup, k, s, p, d, g)
         self.add_module('c', nn.Conv2d(*self.conv_args, bias=False))
         self.add_module('bn', nn.BatchNorm2d(oup))

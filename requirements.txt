@@ -6,4 +6,9 @@ tqdm
 yacs
 termcolor
 fvcore
-wandb
+
+## if you want train
+# wandb
+
+## if you want to use coreml
+# coremltools

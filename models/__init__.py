@@ -1,16 +1,18 @@
 import timm
 from .litevla import LiteVLA
 from .litevla_for_ab import LiteVLA as LiteVLA_AB
+from .aha import get_aha_model
 from .lib import remove_prefix
 
 
-""" 
-    Build model from config and kwargs 
-"""
 def build_model(config, **kwargs):
+    """Build model from config and kwargs."""
     model = build_timm_model(config, **kwargs)
     if model is None:
         model = build_litevla_model(config, **kwargs)
+    if model is None and 'aha' == config.MODEL.TYPE:
+        model_type = remove_prefix(config.MODEL.NAME, 'aha')
+        model = get_aha_model(model_type, **kwargs)
     return model
 
 def build_timm_model(config, is_pretrain=False, **kwargs):
@@ -59,11 +61,8 @@ def build_litevla_model(config, **kwargs):
     return model
 
 
-
-""" 
-    Directly get model from name and kwargs 
-"""
 def create_model(name, **kwargs):
+    """Directly get model from name and kwargs."""
     name = name.lower()
     if name.startswith('timm'):
         return create_timm_model(name, **kwargs)
@@ -112,11 +111,8 @@ def get_litevla_version_args(version):
     return version_args
 
 
-
-"""
-    for image classification on imagenet-1k
-"""
 def create_litevla(name, **kwargs):
+    """For image classification on imagenet-1k."""
     name = remove_prefix(name, 'litevla')
     
     MODEL = LiteVLA
@@ -130,10 +126,7 @@ def create_litevla(name, **kwargs):
     })
 
 
-
-""" 
-    for downstream: Object Detection / Semantic Segmentation
-"""
+# For downstream: Object Detection / Semantic Segmentation
 has_mmdet = True
 has_mmseg = True
 
