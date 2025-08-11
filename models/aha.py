@@ -167,7 +167,8 @@ class AHA(nn.Module):
                  act='silu',
                  attn_start_id=2+2+8, # 第三个 Stage 的第8个块开始
                  drop_path_rate=0.,
-                 layer_scale_init_value=0.):
+                 layer_scale_init_value=0.,
+                 **kwargs):
         super().__init__()
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         downsample_kernels=(5, 3, 3, 3) # check if 5 will increase acc.

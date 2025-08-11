@@ -17,3 +17,9 @@ python -m torch.distributed.launch \
     --data-path dataset/imagenet \
     --output output \
     "$@"
+
+# CUDA_VISIBLE_DEVICES=5,4,3,2 bash main.sh 4 -b 256 --cfg configs/litevla_m.yaml --epoch 100 --use-checkpoint --no-wandb
+# CUDA_VISIBLE_DEVICES=5,4,3,2 bash main.sh 4 -b 256 --cfg configs/litevla_m.yaml --epoch 300 --use-checkpoint --no-wandb
+# CUDA_VISIBLE_DEVICES=5,4,3,2 bash main.sh 4 -b 256 --cfg configs/aha/aha_m.yaml --epoch 100 --no-wandb
+# CUDA_VISIBLE_DEVICES=5,4,3,2 bash main.sh 4 -b 256 --cfg configs/aha/aha_m.yaml --epoch 100 --no-wandb --resume output/aha_m/20250811003000/ckpt_epoch_33.pth
+# CUDA_VISIBLE_DEVICES=5,4,3,2 bash main.sh 4 -b 256 --cfg configs/aha/aha_m.yaml --epoch 300 --no-wandb

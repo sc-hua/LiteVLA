@@ -142,7 +142,13 @@ def main(config, args):
             flops = model.flops()
             logger.info(f"number of GFLOPs: {flops / 1e9}")
         else:
-            logger.info(flop_count_str(FlopCountAnalysis(model, (dataset_val[0][0][None],))))
+            try:
+                logger.info(flop_count_str(FlopCountAnalysis(model, (dataset_val[0][0][None],))))
+            except:
+                logger.info(" ** FlopCountAnalysis failed.\n ** Calc params only.")
+                logger.info(str(model))
+                n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+                logger.info(f"number of params: {n_parameters}")
 
     model.cuda()
     model_without_ddp = model
