@@ -1,3 +1,4 @@
+from functools import partial
 import torch
 import torch.nn as nn
 from timm.layers import DropPath, trunc_normal_, make_divisible
@@ -13,6 +14,8 @@ except:
     from models.ops.norm_act import get_act, get_norm
     from models.lib import use_linear
 
+# HSC: No reparam kernel like 3x3 + 1x1
+RepConv = partial(RepConv, use_rep=False)
 
 class EdgeResidual(nn.Sequential):
     """FusedIB模块 - MobileNetV4中的融合反转瓶颈"""
@@ -156,28 +159,95 @@ class AttnBlock(nn.Module):
         x = self.mlp(x)
         return x
 
+def extract_ablation(ablation):
+    if ablation == '':
+        return {}
+    
+    args = [a for a in ablation.split('--') if a]
+    updates = {}
+
+    for arg in args:
+        lst = arg.split(':')
+        assert len(lst) == 2 or len(lst) == 1, \
+            f"Invalid ablation argument: {arg}"
+        
+        arg = lst[0]
+        
+        # e.g. downsample_kernels:5,3,3,3--conv_kernels:3,3,3,3--cpe_kernels:3,3,3,3
+        if arg in [
+            'dims',
+            'depths',
+            'mlp_ratios',
+            'downsample_kernels',
+            'conv_kernels',
+            'cpe_kernels',
+            ]:
+            updates[arg] = list(map(int, lst[1].split(',')))
+
+        # e.g. attn_start_id:2+2+8
+        if arg in [
+            'attn_start_id',
+            'attn_reduce',
+        ]:
+            updates[arg] = eval(lst[1]) if '+' in lst[1] else int(lst[1])
+
+        # e.g. attn_norm:ln--attn_gate_act:sigmoid
+        if arg in [
+            'la_kernel',
+            'attn_norm',
+            'attn_gate_act',
+            'act',
+            'mlp_act',
+            ]:
+            updates[arg] = lst[1]
+
+        # e.g. use_glu:true
+        if arg in [
+            'use_glu',
+            'all_linear',
+            ]:
+            val = lst[1]
+            if val in ['True', 'true', '1', True, 'yes', 'on']:
+                updates[arg] = True
+            elif val in ['False', 'false', '0', False, 'no', 'off']:
+                updates[arg] = False
+            else:
+                raise ValueError(f"Invalid boolean value for {arg}: {val}")
+    
+    print(f"Extracted ablation args: {updates}")
+    return updates
 
 class AHA(nn.Module):
     """AHA: Adaptive Hybrid Attention for Mobile Vision Applications"""
     def __init__(self, inp=3, 
                  num_classes=1000, 
-                 dims=(48, 96, 192, 384),
-                 depths=(2, 2, 12, 4),
-                 mlp_ratios=(4, 4, 3, 3),
-                 act='silu',
-                 attn_start_id=2+2+8, # 第三个 Stage 的第8个块开始
                  drop_path_rate=0.,
                  layer_scale_init_value=0.,
+                 ablation='',
                  **kwargs):
         super().__init__()
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
-        downsample_kernels=(5, 3, 3, 3) # check if 5 will increase acc.
-        conv_kernels = (3, 3, 3, 3)
-        cpe_kernels = (3, 3, 3, 3)
-        attn_gate_act = 'sigmoid'
-        use_glu = False
-        mlp_act = act
+        kwargs.update(extract_ablation(ablation))
+        
+        # HSC: check if 5 will increase acc.
+        dims = kwargs.get('dims', (48, 96, 192, 384))
+        depths = kwargs.get('depths', (2, 2, 12, 4))
+        mlp_ratios = kwargs.get('mlp_ratios', (4, 4, 3, 3))
+        downsample_kernels = kwargs.get('downsample_kernels', (5, 3, 3, 3))
+        conv_kernels = kwargs.get('conv_kernels', (3, 3, 3, 3))
+        cpe_kernels = kwargs.get('cpe_kernels', (3, 3, 3, 3))
+        
+        attn_start_id = kwargs.get('attn_start_id', 2 + 2 + 8) # 第三个 Stage 的第8个块开始
+        attn_reduce = kwargs.get('attn_reduce', 2)
 
+        la_kernel = kwargs.get('la_kernel', 'elu1')
+        attn_norm = kwargs.get('attn_norm', 'gn1')
+        attn_gate_act = kwargs.get('attn_gate_act', 'sigmoid')
+        act = kwargs.get('act', 'silu')
+        mlp_act = kwargs.get('mlp_act', act)
+        use_glu = kwargs.get('use_glu', False)
+        all_linear = kwargs.get('all_linear', False)
+        
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         self.num_classes = num_classes
         self.stem = nn.Sequential(
             ConvNorm(inp=inp, oup=dims[0] // 2, k=downsample_kernels[0], s=2), 
@@ -208,11 +278,12 @@ class AHA(nn.Module):
                     ))
                 else:
                     attn_type = "SA" if i == depth - 1 else "LA"
+                    attn_type = "LA" if all_linear else attn_type
                     blocks.append(AttnBlock(
-                        dim=dim, cpe_k=cpe_kernel, attn_type=attn_type,
-                        attn_reduce=2, attn_norm='gn1', attn_gate_act=attn_gate_act,
-                        la_kernel='elu1', mlp_ratio=mlp_ratio, mlp_act=mlp_act,
-                        use_glu=use_glu, ls_init=layer_scale_init_value, dp=dpr[cur]
+                        dim=dim, cpe_k=cpe_kernel, attn_type=attn_type, attn_reduce=attn_reduce, 
+                        attn_norm=attn_norm, attn_gate_act=attn_gate_act, la_kernel=la_kernel, 
+                        mlp_ratio=mlp_ratio, mlp_act=mlp_act, use_glu=use_glu, 
+                        ls_init=layer_scale_init_value, dp=dpr[cur]
                     ))
                 cur += 1
             blocks = nn.ModuleList(blocks)
@@ -297,7 +368,7 @@ if __name__ == "__main__":
     x = torch.randn(1, 3, 224, 224)
     print(f"Input shape: {x.shape}")
     
-    m = aha_small()
+    m = aha_medium()
     
     # get model, params and flops
     from timm.utils.model import reparameterize_model

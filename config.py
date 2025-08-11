@@ -68,6 +68,9 @@ _C.MODEL.LABEL_SMOOTHING = 0.1
 # MMpretrain models for test
 _C.MODEL.MMCKPT = False
 
+# Ablation study configuration
+_C.MODEL.ABLATION = ""
+
 # LiteVLA parameters, default: litevla_pico
 _C.MODEL.LITEVLA = CN()
 _C.MODEL.LITEVLA.DIMS = [48, 96, 192, 384]

@@ -29,11 +29,18 @@ from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count
 
 from timm.utils import ModelEma as ModelEma
 
+has_wandb = True
+has_swanlab = True
+
 try:
     import wandb
-    has_wandb = True
-except ImportError:
+except ModuleNotFoundError:
     has_wandb = False
+try:
+    import swanlab
+except ModuleNotFoundError:
+    has_swanlab = False
+
 
 if torch.multiprocessing.get_start_method() != "spawn":
     print(f"||{torch.multiprocessing.get_start_method()}||", end="")
@@ -106,7 +113,8 @@ def parse_option():
     parser.add_argument('--distillation-alpha', default=0.5, type=float)
     parser.add_argument('--distillation-tau', default=1.0, type=float)
 
-    parser.add_argument('--no-wandb', action='store_true', help='Disable wandb')
+    parser.add_argument('--log-method', default='swanlab', type=str, help='logging method.')
+    parser.add_argument('--no-log', action='store_true', help='Disable logging.')
     parser.add_argument('--save-all', action='store_true', help='Save all checkpoint files.')
     parser.add_argument('--min-ckpt-num', type=int, default=2, help='Minimum number of saved checkpoint files.')
 
@@ -258,15 +266,21 @@ def main(config, args):
             throughput(data_loader_val, model_ema.ema, logger)
         return
 
-    # for wandb
+    # for logging
     now_datetime = datetime.datetime.now().strftime('%m%d-%H%M%S')
-    if has_wandb and not args.no_wandb and dist.get_rank() == 0:
-        wandb.init(
-            project=config.MODEL.TYPE,
-            name=config.MODEL.NAME+'-'+now_datetime,
-            config=config,
-            settings=dict(init_timeout=120),
-        )
+    if dist.get_rank() == 0 and not args.no_log:
+        if args.log_method == 'wandb':
+            assert has_wandb, "wandb is not installed, please => pip install wandb"
+            wandb.init(
+                project=config.MODEL.TYPE, name=config.MODEL.NAME+'-'+now_datetime,
+                config=config, settings=dict(init_timeout=120),
+            )
+        elif args.log_method == 'swanlab':
+            assert has_swanlab, "swanlab is not installed, please => pip install swanlab"
+            swanlab.init(
+                project=config.MODEL.TYPE, name=config.MODEL.NAME+'-'+now_datetime,
+                config=config,
+            )
 
     logger.info(f"Start training from {config.TRAIN.START_EPOCH} to {config.TRAIN.EPOCHS}.")
     start_time = time.time()
@@ -292,7 +306,7 @@ def main(config, args):
                 if save_max:
                     save_checkpoint_ema(config, epoch, model_without_ddp, max_accuracy, optimizer, lr_scheduler, loss_scaler, logger, model_ema, max_accuracy_ema, name='max_acc', min_ckpt_num=args.min_ckpt_num)
 
-            if has_wandb and not args.no_wandb and dist.get_rank() == 0:
+            if dist.get_rank() == 0 and not args.no_log:
                 log_data = {
                     'acc1': acc1, 'acc5': acc5, 'epoch': epoch, 'loss': loss,
                     'max_acc1': max_accuracy,'lr': optimizer.param_groups[0]['lr'],
@@ -305,8 +319,11 @@ def main(config, args):
                         'acc1_ema': acc1_ema, 'acc5_ema': acc5_ema, 'loss_ema': loss_ema,
                         'max_acc1_ema': max_accuracy_ema,
                     })
-                wandb.log(log_data)
-                logger.info(f' ✔︎ wandb log uploaded.')
+                if args.log_method == 'wandb':
+                    wandb.log(log_data)
+                elif args.log_method == 'swanlab':
+                    swanlab.log(log_data)
+                logger.info(f' ✔︎ {args.log_method} log uploaded.')
 
     except KeyboardInterrupt:
         pass

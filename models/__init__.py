@@ -12,6 +12,7 @@ def build_model(config, **kwargs):
         model = build_litevla_model(config, **kwargs)
     if model is None and 'aha' == config.MODEL.TYPE:
         model_type = remove_prefix(config.MODEL.NAME, 'aha')
+        kwargs.update(ablation=config.MODEL.ABLATION)
         model = get_aha_model(model_type, **kwargs)
     return model
 
