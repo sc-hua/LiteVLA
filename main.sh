@@ -7,6 +7,12 @@ shift
 # Check if PORT environment variable is set, default use port 29501
 MASTER_PORT=${PORT:-29501}
 
+while lsof -i:"$MASTER_PORT" >/dev/null 2>&1; do
+  echo "Port $MASTER_PORT is in use, trying next..."
+  MASTER_PORT=$((MASTER_PORT+1))
+done
+echo "Using port $MASTER_PORT"
+
 python -m torch.distributed.launch \
     --nnodes=1 \
     --node_rank=0 \
@@ -26,4 +32,10 @@ python -m torch.distributed.launch \
 
 # now we use --no-log
 # CUDA_VISIBLE_DEVICES=5,4,3,2 bash main.sh 4 -b 256 --cfg configs/aha/aha_m.yaml --epoch 300 --no-log
-# CUDA_VISIBLE_DEVICES=5,4,3,2 bash main.sh 4 -b 256 --cfg configs/aha/aha_m.yaml --epoch 300 --log-method swanlab
+# CUDA_VISIBLE_DEVICES=5,4,3,2 bash main.sh 4 -b 256 --cfg configs/aha/aha_m.yaml --epoch 100 --log-method swanlab
+# CUDA_VISIBLE_DEVICES=5,4,3,2 bash main.sh 4 -b 256 --cfg configs/aha/aha_m_an0.yaml --epoch 100 --log-method swanlab
+
+
+# git remote set-url origin https://kkgithub.com/sc-hua/LiteVLA.git
+# git remote set-url origin https://github.com/sc-hua/LiteVLA.git
+# git pull origin main --no-rebase
