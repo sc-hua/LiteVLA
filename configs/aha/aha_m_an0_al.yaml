@@ -1,0 +1,9 @@
+MODEL:
+  TYPE: aha
+  NAME: aha_m
+  ABLATION: attn_norm:none--all_linear:true
+
+TRAIN:
+  WARMUP_EPOCHS: 10
+
+# medium 
